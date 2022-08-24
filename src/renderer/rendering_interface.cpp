@@ -13,7 +13,7 @@ const char* basicMeshVertexShader = R"(
 
   void main()
   {
-    gl_VertexPosition = vec4(vPosition, 1.0);
+    gl_Position = vec4(vPosition, 1.0);
   }
 )";
 
@@ -79,11 +79,13 @@ namespace sr {
 
   R_API void srLoad(SRLoadProc loadAddress)
   {
+    gladLoadGLLoader(loadAddress);
+    SR_TRACE("OpenGL-Context: %s", glGetString(GL_VERSION));
     if (SRC == NULL)
     {
       SRC = new SRContext();
+      srInitContext(SRC);
     }
-    gladLoadGLLoader(loadAddress);
   }
 
   R_API void srTerminate()
@@ -97,9 +99,9 @@ namespace sr {
 
   R_API void srInitContext(SRContext* context)
   {
-    if (context->DefaultShader == 0)
+    if (context->DefaultShader.ID == 0)
     {
-
+      SRC->DefaultShader = srLoadShader(basicMeshVertexShader, basicMeshFragmentShader);
     }
   }
 
@@ -185,7 +187,8 @@ namespace sr {
           }
       }*/
 
-      
+      srDeleteShader(GL_VERTEX_SHADER, vert_id);
+      srDeleteShader(GL_FRAGMENT_SHADER, frag_id);
 
       Shader result = {0};
       result.ID = prog_id;
@@ -196,11 +199,11 @@ namespace sr {
   R_API int srCompileShader(int shader_type, const char* shader_source)
   {
     int result = glCall(glCreateShader(shader_type));
-    glCall(glShaderSource(shader_type, 1, &shader_source, NULL));
+    glCall(glShaderSource(result, 1, &shader_source, NULL));
 
-    glCall(glCompileShader(shader_type));
+    glCall(glCompileShader(result));
     GLint error = 0;
-    glCall(glGetShaderiv(shader_type, GL_COMPILE_STATUS, &error));
+    glCall(glGetShaderiv(result, GL_COMPILE_STATUS, &error));
     if (error == 0)
     {
         switch (shader_type)
@@ -242,7 +245,12 @@ namespace sr {
 
   R_API void srDeleteShader(int shader_type, unsigned int id)
   {
-    glDeleteShader(id);
+    glCall(glDeleteShader(id));
+  }
+
+  R_API void srUseShader(Shader shader)
+  {
+    glCall(glUseProgram(shader.ID));
   }
 
   // Vertex Arrays
@@ -258,8 +266,10 @@ namespace sr {
     case EVertexAttributeType::FLOAT2:
     case EVertexAttributeType::INT2:    return 2;
     case EVertexAttributeType::FLOAT3:
-    case EVertexAttributeType::INT3:  
-    case EVertexAttributeType::BYTE4:  return 3;
+    case EVertexAttributeType::INT3:    return 3;
+    case EVertexAttributeType::FLOAT4:
+    case EVertexAttributeType::INT4:  
+    case EVertexAttributeType::BYTE4:   return 4;
     }
     SR_TRACE("ERROR: Could not get vertex attrib type component count");
 
@@ -322,8 +332,6 @@ namespace sr {
     glCall(glBindBuffer(GL_ARRAY_BUFFER, result));
 
     glCall(glBufferData(GL_ARRAY_BUFFER, data_size, data, GL_STATIC_DRAW));
-
-    glCall(glBindBuffer(GL_ARRAY_BUFFER, 0));
     return result;
   }
 
@@ -334,8 +342,6 @@ namespace sr {
     glCall(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, result));
 
     glCall(glBufferData(GL_ELEMENT_ARRAY_BUFFER, data_size, data, GL_STATIC_DRAW));
-
-    glCall(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
     return result;
   }
 
@@ -358,7 +364,10 @@ namespace sr {
       SR_TRACE("ERROR: DrawMesh failed. VertexArray not initialized!");
       return;
     }
-    //if (!srBindVertexArray(mesh.VAO.VAO))
+    srUseShader(SRC->DefaultShader);
+
+
+    if (!srBindVertexArray(mesh.VAO.VAO))
     {
       for (const auto& buffer : mesh.VAO.VBOs)
       {
@@ -368,14 +377,14 @@ namespace sr {
       }
     }
 
-    if (mesh.VAO.IBO)
+    if (mesh.VAO.IBO != 0)
     {
       srBindElementBuffer(mesh.VAO.IBO);
       glCall(glDrawElements(GL_TRIANGLES, mesh.Indices.size(), GL_UNSIGNED_INT, NULL));
     }
     else
     {
-      glDrawArrays(GL_TRIANGLES, 0, mesh.Vertices.size());
+      glCall(glDrawArrays(GL_TRIANGLES, 0, mesh.Vertices.size()));
     }
   }
 
@@ -391,23 +400,23 @@ namespace sr {
     srBindVertexArray(vertexArray.VAO);
     
     unsigned int vbo_position = srLoadVertexBuffer(mesh->Vertices.data(), mesh->Vertices.size() * sizeof(glm::vec3));
-    srSetVertexAttribute(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
     srEnableVertexAttribute(0);
+    srSetVertexAttribute(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
     vertexArray.VBOs.push_back({VertexArrayLayoutElement(EVertexAttributeType::FLOAT3, 0), vbo_position});
 
     if (mesh->Normals.size() > 0)
     {
       unsigned int vbo_normal = srLoadVertexBuffer(mesh->Normals.data(), mesh->Normals.size() * sizeof(glm::vec3));
-      srSetVertexAttribute(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
       srEnableVertexAttribute(1);
+      srSetVertexAttribute(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
       vertexArray.VBOs.push_back({VertexArrayLayoutElement(EVertexAttributeType::FLOAT3, 1), vbo_normal});
     }
 
     if (mesh->TextureCoords0.size() > 0)
     {
       unsigned int vbo_textCoords = srLoadVertexBuffer(mesh->TextureCoords0.data(), mesh->TextureCoords0.size() * sizeof(glm::vec2));
-      srSetVertexAttribute(2, 2, GL_FLOAT, GL_FALSE, 0, 0);
       srEnableVertexAttribute(2);
+      srSetVertexAttribute(2, 2, GL_FLOAT, GL_FALSE, 0, 0);
       vertexArray.VBOs.push_back({VertexArrayLayoutElement(EVertexAttributeType::FLOAT2, 2), vbo_textCoords});
     }
 

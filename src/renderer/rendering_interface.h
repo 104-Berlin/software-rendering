@@ -68,6 +68,8 @@ namespace sr {
 
     R_API void srDeleteShader(int shader_type, unsigned int id);
 
+    R_API void srUseShader(Shader shader);
+
 
     // Vertex Array
     // Used to store all buffers to be able to render
@@ -139,9 +141,7 @@ namespace sr {
 
     struct SRContext
     {
-        unsigned int DefaultVertShader = 0;
-        unsigned int DefaultFragShader = 0;
-        unsigned int DefaultShader = 0;
+        Shader DefaultShader;
     };
 
 
