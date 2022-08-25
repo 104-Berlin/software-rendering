@@ -92,6 +92,12 @@ namespace sr {
   {
     if (SRC)
     {
+      // Unload loaded meshes
+      for (Mesh& mesh : SRC->AutoReleaseMeshes)
+      {
+        srUnloadMesh(&mesh);
+      }
+
       delete SRC;
       SRC = NULL;
     }
@@ -103,6 +109,7 @@ namespace sr {
     {
       SRC->DefaultShader = srLoadShader(basicMeshVertexShader, basicMeshFragmentShader);
     }
+    context->RenderBatch = srLoadRenderBatch(5000);
   }
 
   R_API void srClear(int mask)
@@ -305,6 +312,15 @@ namespace sr {
     glCall(glGenVertexArrays(1, &result));
     return result;
   }
+
+  R_API void srUnloadVertexArray(unsigned int id)
+  {
+    if (id)
+    {
+      glCall(glDeleteVertexArrays(1, &id));
+    }
+  }
+
   
   R_API bool srBindVertexArray(unsigned int id)
   {
@@ -324,6 +340,50 @@ namespace sr {
   {
     glEnableVertexAttribArray(location);
   }
+
+  R_API Mesh srLoadMesh(const MeshInit& initData)
+  {
+    Mesh result{};
+    if (initData.Vertices.size() == 0)
+    {
+      SR_TRACE("No Vertices provided for LoadingMesh");
+      return result;
+    }
+    assert(!(initData.Vertices.size() 
+            == (initData.Normals.size() == 0 ? initData.Vertices.size() : initData.Normals.size())
+            == (initData.TexCoord1.size() == 0 ? initData.Vertices.size() : initData.TexCoord1.size())));
+
+    result.VertexCount = initData.Vertices.size();
+    result.ElementCount = initData.Indices.size();
+
+    result.Vertices = new glm::vec3[result.VertexCount];
+    memcpy(result.Vertices, initData.Vertices.data(), result.VertexCount * sizeof(glm::vec3));
+
+    if (initData.Normals.size() > 0)
+    {
+      result.Normals = new glm::vec3[result.VertexCount];
+      memcpy(result.Normals, initData.Normals.data(), result.VertexCount * sizeof(glm::vec3));
+    }
+
+    if (initData.TexCoord1.size() > 0)
+    {
+      result.TextureCoords0 = new glm::vec2[result.VertexCount];
+      memcpy(result.TextureCoords0, initData.TexCoord1.data(), result.VertexCount * sizeof(glm::vec2));
+    }
+
+    if (result.ElementCount > 0)
+    {
+      result.Indices = new unsigned int[result.ElementCount];
+      memcpy(result.Indices, initData.Indices.data(), result.ElementCount * sizeof(unsigned int));
+    }
+
+    srUploadMesh(&result);
+    srDeleteMeshCPUData(&result); // Delete mesh data. We only want to delete the openglbuffers
+
+    SRC->AutoReleaseMeshes.push_back(result); // Push to autorelease on cleanup
+    return result;
+  }
+
 
   R_API unsigned int srLoadVertexBuffer(void* data, size_t data_size)
   {
@@ -345,6 +405,15 @@ namespace sr {
     return result;
   }
 
+  R_API void srUnloadBuffer(unsigned int id)
+  {
+    if (id)
+    {
+      glCall(glDeleteBuffers(1, &id));
+    }
+  }
+
+
   
   R_API void srBindVertexBuffer(unsigned int id)
   {
@@ -357,7 +426,7 @@ namespace sr {
   }
 
   
-  R_API void srDrawMesh(Mesh mesh)
+  R_API void srDrawMesh(const Mesh& mesh)
   {
     if (mesh.VAO.VAO <= 0)
     {
@@ -379,12 +448,12 @@ namespace sr {
 
     if (mesh.VAO.IBO != 0)
     {
-      srBindElementBuffer(mesh.VAO.IBO);
-      glCall(glDrawElements(GL_TRIANGLES, mesh.Indices.size(), GL_UNSIGNED_INT, NULL));
+      //srBindElementBuffer(mesh.VAO.IBO); // In case mac does not work use this here
+      glCall(glDrawElements(GL_TRIANGLES, mesh.ElementCount, GL_UNSIGNED_INT, NULL));
     }
     else
     {
-      glCall(glDrawArrays(GL_TRIANGLES, 0, mesh.Vertices.size()));
+      glCall(glDrawArrays(GL_TRIANGLES, 0, mesh.VertexCount));
     }
   }
 
@@ -395,40 +464,210 @@ namespace sr {
       // Mesh allready loaded to GPU
       return;
     }
-    VertexArray vertexArray;
+    VertexBuffers vertexArray;
     vertexArray.VAO = srLoadVertexArray();
     srBindVertexArray(vertexArray.VAO);
     
-    unsigned int vbo_position = srLoadVertexBuffer(mesh->Vertices.data(), mesh->Vertices.size() * sizeof(glm::vec3));
+    unsigned int vbo_position = srLoadVertexBuffer(mesh->Vertices, mesh->VertexCount * sizeof(glm::vec3));
     srEnableVertexAttribute(0);
     srSetVertexAttribute(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
     vertexArray.VBOs.push_back({VertexArrayLayoutElement(EVertexAttributeType::FLOAT3, 0), vbo_position});
 
-    if (mesh->Normals.size() > 0)
+    if (mesh->Normals)
     {
-      unsigned int vbo_normal = srLoadVertexBuffer(mesh->Normals.data(), mesh->Normals.size() * sizeof(glm::vec3));
+      unsigned int vbo_normal = srLoadVertexBuffer(mesh->Normals, mesh->VertexCount * sizeof(glm::vec3));
       srEnableVertexAttribute(1);
       srSetVertexAttribute(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
       vertexArray.VBOs.push_back({VertexArrayLayoutElement(EVertexAttributeType::FLOAT3, 1), vbo_normal});
     }
 
-    if (mesh->TextureCoords0.size() > 0)
+    if (mesh->TextureCoords0)
     {
-      unsigned int vbo_textCoords = srLoadVertexBuffer(mesh->TextureCoords0.data(), mesh->TextureCoords0.size() * sizeof(glm::vec2));
+      unsigned int vbo_textCoords = srLoadVertexBuffer(mesh->TextureCoords0, mesh->VertexCount * sizeof(glm::vec2));
       srEnableVertexAttribute(2);
       srSetVertexAttribute(2, 2, GL_FLOAT, GL_FALSE, 0, 0);
       vertexArray.VBOs.push_back({VertexArrayLayoutElement(EVertexAttributeType::FLOAT2, 2), vbo_textCoords});
     }
 
-    if (mesh->Indices.size() > 0)
+    if (mesh->Indices)
     {
-      unsigned int ibo = srLoadElementBuffer(mesh->Indices.data(), mesh->Indices.size() * sizeof(unsigned int));
+      unsigned int ibo = srLoadElementBuffer(mesh->Indices, mesh->ElementCount * sizeof(unsigned int));
       vertexArray.IBO = ibo;
     }
 
     srBindVertexArray(0);
     mesh->VAO = vertexArray;
   }
+
+  R_API void srUnloadMesh(Mesh* mesh)
+  {
+    srUnloadVertexBuffers(mesh->VAO);
+    srDeleteMeshCPUData(mesh);
+  }
+
+  R_API void srDeleteMeshCPUData(Mesh* mesh)
+  {
+    if (mesh->Vertices)
+    {
+      delete[] mesh->Vertices;
+      mesh->Vertices = NULL;
+    }
+    if (mesh->Normals)
+    {
+      delete[] mesh->Normals;
+      mesh->Normals = NULL;
+    }
+    if (mesh->TextureCoords0)
+    {
+      delete[] mesh->TextureCoords0;
+      mesh->TextureCoords0 = NULL;
+    }
+    if (mesh->Indices)
+    {
+      delete[] mesh->Indices;
+      mesh->Indices = NULL;
+    }
+  }
+
+
+
+  R_API void srUnloadVertexBuffers(const VertexBuffers& vao)
+  {
+    // Delete Vertex buffers
+    for (VertexBuffers::VertBuf buff : vao.VBOs)
+    {
+      srUnloadBuffer(buff.ID);
+    }
+
+    // Delete Index Buffer
+    srUnloadBuffer(vao.IBO);
+
+    // Delete VertexArray
+    srUnloadVertexArray(vao.VAO);
+  }
+
+  R_API RenderBatch srLoadRenderBatch(unsigned int bufferSize)
+  {
+    RenderBatch result;
+    result.CurrentDraw = 0;
+    result.DrawCalls = new RenderBatch::DrawCall[SR_BATCH_DRAW_CALLS];
+    result.VertexCounter = 0;
+    
+    result.DrawBuffer.Vertices = new glm::vec3[bufferSize * 4];
+    memset(result.DrawBuffer.Vertices, 0, bufferSize * 4 * sizeof(glm::vec3));
+    result.DrawBuffer.Indices = new unsigned int[bufferSize * 6];
+    memset(result.DrawBuffer.Indices, 0, bufferSize * 4 * sizeof(unsigned int));
+    result.DrawBuffer.ElementCount = bufferSize * 4;
+
+    VertexBuffers glBinding;
+    glBinding.VAO = srLoadVertexArray();
+    srBindVertexArray(glBinding.VAO);
+
+    unsigned int vbo_position = srLoadVertexBuffer(result.DrawBuffer.Vertices, bufferSize * 4 * sizeof(glm::vec3));
+    srEnableVertexAttribute(0);
+    srSetVertexAttribute(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+    glBinding.VBOs.push_back({VertexArrayLayoutElement(EVertexAttributeType::FLOAT3, 0), vbo_position});
+
+    unsigned int ibo = srLoadElementBuffer(result.DrawBuffer.Indices, bufferSize * 6 * sizeof(unsigned int));
+    glBinding.IBO = ibo;
+
+    srBindVertexArray(0);
+
+    result.DrawBuffer.GlBinding = glBinding;
+    return result;
+  }
+
+  R_API void srIncreaseRenderBatchCurrentDraw(RenderBatch* batch)
+  {
+    if (batch->CurrentDraw++ >= SR_BATCH_DRAW_CALLS)
+    {
+      srDrawRenderBatch(batch);
+    }
+  }
+
+  R_API bool srCheckRenderBatchLimit(unsigned int numVerts)
+  {
+    bool overflow = false;
+    RenderBatch& rb = SRC->RenderBatch;
+
+    if (rb.VertexCounter + numVerts >= rb.DrawBuffer.ElementCount)
+    {
+      EBatchDrawMode currentMode = rb.DrawCalls[rb.CurrentDraw].Mode;
+
+      srDrawRenderBatch(&rb);
+
+      rb.DrawCalls[rb.CurrentDraw].Mode = currentMode;
+      overflow = true;
+    }
+    return overflow;
+  }
+
+  R_API void srDrawRenderBatch(RenderBatch* batch)
+  {
+    srUseShader(SRC->DefaultShader);
+
+    if (!srBindVertexArray(batch->DrawBuffer.GlBinding.VAO))
+    {
+      for (const auto& buffer : batch->DrawBuffer.GlBinding.VBOs)
+      {
+        srBindVertexBuffer(buffer.ID);
+        srSetVertexAttribute(buffer.Layout.Location, srGetVertexAttributeComponentCount(buffer.Layout.ElementType), srGetGLVertexAttribType(buffer.Layout.ElementType), buffer.Layout.Normalized, 0, 0);
+        srEnableVertexAttribute(buffer.Layout.Location);
+      }
+    }
+
+    srBindVertexBuffer(batch->DrawBuffer.GlBinding.VBOs[0].ID);
+    glCall(glBufferSubData(GL_ARRAY_BUFFER, 0, batch->VertexCounter * sizeof(glm::vec3), batch->DrawBuffer.Vertices));
+
+    // Draw everything to current draw
+    for (unsigned int i = 0, vertexOffset = 0; i <= batch->CurrentDraw; i++)
+    {
+      EBatchDrawMode mode = batch->DrawCalls[i].Mode;
+      switch (mode)
+      {
+      case EBatchDrawMode::LINES:     glCall(glDrawArrays(GL_LINES, vertexOffset, batch->DrawCalls[i].VertexCount)); break;
+      case EBatchDrawMode::TRIANGLES: glCall(glDrawArrays(GL_TRIANGLES, vertexOffset, batch->DrawCalls[i].VertexCount)); break;
+      case EBatchDrawMode::QUADS:     SR_TRACE("QUADS NO IMPLEMENTED YET!"); break;
+      }
+      vertexOffset += batch->DrawCalls[i].VertexCount;
+    }
+  }
+
+
+
+  R_API void srBegin(EBatchDrawMode mode)
+  {
+    RenderBatch& rb = SRC->RenderBatch;
+    if (rb.DrawCalls[rb.CurrentDraw].Mode != mode)
+    {
+      srIncreaseRenderBatchCurrentDraw(&rb);
+      rb.DrawCalls[rb.CurrentDraw].Mode = mode;
+      rb.DrawCalls[rb.CurrentDraw].VertexCount = 0;
+      rb.DrawCalls[rb.CurrentDraw].VertexAlignment = 0;
+    }
+  }
+
+  R_API void srVertex3f(float x, float y, float z)
+  {
+    srVertex3f({x, y, z});
+  }
+
+  R_API void srVertex3f(const glm::vec3& vertex)
+  {
+    srCheckRenderBatchLimit(1);
+
+    SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter] = vertex;
+
+    SRC->RenderBatch.VertexCounter++;
+    SRC->RenderBatch.DrawCalls[SRC->RenderBatch.CurrentDraw].VertexCount++;
+  }
+
+  R_API void srEnd()
+  {
+
+  }
+
+
 
 
 }

@@ -20,18 +20,17 @@ int main()
 
 
 
-    sr::Mesh mesh;
-    mesh.Vertices = {
+    sr::MeshInit initData;
+    initData.Vertices = {
         {-0.5f, -0.5f, 0.0f},
         { 0.0f,  0.5f, 0.0f},
         { 0.5f, -0.5f, 0.0f}
     };
-    mesh.Indices = {
+    initData.Indices = {
         0, 1, 2
     };
 
-
-    sr::srUploadMesh(&mesh);
+    sr::Mesh mesh = sr::srLoadMesh(initData);
 
     while (!glfwWindowShouldClose(window))
     {
@@ -40,17 +39,38 @@ int main()
         int width, height;
         glfwGetFramebufferSize(window, &width, &height);
         sr::srViewport(0, 0, (float)width, (float)height);
-        sr::srClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        sr::srClearColor(0.5f, 0.4f, 0.8f, 1.0f);
         sr::srClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+
+        sr::srBegin(sr::EBatchDrawMode::LINES);
+        sr::srVertex3f(-0.8f, 0.5f, 0.0f);
+        sr::srVertex3f(-0.2f, 0.5f, 0.0f);
+        sr::srVertex3f(-0.2f, 0.5f, 0.0f);
+        sr::srVertex3f(-0.2f, 0.1f, 0.0f);
+        sr::srEnd();
+        
+        sr::srBegin(sr::EBatchDrawMode::LINES);
+        sr::srVertex3f(-0.8f, -0.2f, 0.0f);
+        sr::srVertex3f(-0.8f, -0.8f, 0.0f);
+        sr::srVertex3f(-0.8f, -0.8f, 0.0f);
+        sr::srVertex3f( 0.1f, -0.8f, 0.0f);
+        sr::srEnd();
+
+        
+
+
+
         sr::srDrawMesh(mesh);
+
+        sr::srDrawRenderBatch(&sr::SRC->RenderBatch);
 
         glfwSwapBuffers(window);
     }
 
+    sr::srTerminate();
     glfwDestroyWindow(window);
     glfwTerminate();
-    sr::srTerminate();
 
     return 0;
 }
