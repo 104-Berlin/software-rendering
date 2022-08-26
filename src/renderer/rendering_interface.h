@@ -41,6 +41,7 @@ namespace sr {
     using Color = uint32_t;
 
     R_API Color srGetColorFromFloat(float r, float g, float b, float a = 1.0f);
+    R_API Color srGetColorFromFloat(const glm::vec4& color);
     /**
      * @brief Get color as vec4
      * 
@@ -54,6 +55,12 @@ namespace sr {
 
     constexpr double DEG2RAD = (PI / 180.0);
     constexpr double RAD2DEG = (180.0 / PI);
+
+    template <typename T>
+    T srAbs(const T& value)
+    {
+        return value < 0.0 ? -value : value;
+    }
 
     template <typename T>
     T srMin(const T& a, const T& b)
@@ -251,6 +258,9 @@ namespace sr {
 
         glm::vec3       CurrentNormal;
         Color           CurrentColor;
+
+        // Path builder
+        std::vector<glm::vec2> Path;
     };
 
     /**
@@ -270,9 +280,13 @@ namespace sr {
     R_API void srVertex3f(const glm::vec3& vertex);
     R_API void srVertex2f(float x, float y);
     R_API void srVertex2f(const glm::vec2& vertex);
+    R_API void srColor1c(Color color);
     R_API void srColor4f(float r, float g, float b, float a);
     R_API void srEnd();
+
+
     
+
     // More high level rendering methods
 
     struct Rectangle 
@@ -284,9 +298,30 @@ namespace sr {
     };
 
 
-    R_API void srDrawRectangle(float x, float y, float width, float height, float rotation = 0.0f);
-    R_API void srDrawRectangle(const glm::vec2& position, const glm::vec2& size, float rotation = 0.0f);
-    R_API void srDrawRectangle(const Rectangle& rect, glm::vec2& origin, float rotation = 0.0f);
+    R_API void srDrawRectangle(float x, float y, float width, float height, float rotation = 0.0f, float cornerRadius = 0.0f, Color color = 0xffffffff);
+    R_API void srDrawRectangle(const glm::vec2& position, const glm::vec2& size, float rotation = 0.0f, float cornerRadius = 0.0f, Color color = 0xffffffff);
+    R_API void srDrawRectangle(const Rectangle& rect, glm::vec2& origin, float rotation = 0.0f, float cornerRadius = 0.0f,  Color color = 0xffffffff);
+    R_API void srDrawCircle(const glm::vec2& center, float radius, Color color = 0xffffffff, unsigned int segmentCount = 36);
+    R_API void srDrawArc(const glm::vec2& center, float startAngle, float endAngle, float radius, Color color = 0xffffffff, unsigned int segmentCount = 22);
+
+
+
+    // Path builder. Begin with srBeginPath(), and end with srEndPath(type). The type can be PathType_Stroke, PathType_Fill. You can also or them together to get stroke and fill 
+    typedef uint32_t PathType;
+    enum PathType_
+    {
+        PathType_Stroke = 1 << 0,
+        PathType_Fill   = 1 << 1
+    };
+
+    R_API void srBeginPath();
+    R_API void srEndPath(PathType type);
+
+    // Flushing path
+    R_API void srAddPolyline(const std::vector<glm::vec2>& points, float thickness = 0.1f, Color color = 0xffffffff);
+    R_API void srAddPolyFilled(const std::vector<glm::vec2>& points, Color color = 0xffffffff);
+
+
 
     struct SRContext
     {

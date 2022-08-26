@@ -10,8 +10,20 @@ set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 add_subdirectory(src/renderer)
 add_subdirectory(deps/glfw)
 
-add_executable(SoftwareRendering main.cpp)
-target_link_libraries(SoftwareRendering srRenderer glfw)
+## IMGUI
+add_library(ImGui STATIC    deps/imgui/imgui.cpp
+                            deps/imgui/imgui_demo.cpp
+                            deps/imgui/imgui_draw.cpp
+                            deps/imgui/imgui_widgets.cpp
+                            deps/imgui/imgui_tables.cpp)
+
+
+target_include_directories(ImGui PUBLIC deps/imgui)
+
+add_executable(SoftwareRendering main.cpp
+                                    deps/imgui/backends/imgui_impl_opengl3.cpp
+                                    deps/imgui/backends/imgui_impl_glfw.cpp)
+target_link_libraries(SoftwareRendering srRenderer glfw ImGui)
 
 set_target_properties(SoftwareRendering
                         PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})

@@ -141,10 +141,15 @@ namespace sr {
     b = srClip(b, 0.0f, 1.0f);
     a = srClip(a, 0.0f, 1.0f);
 
-    return  (((unsigned char) a * 255) << 24) 
-          | (((unsigned char) b * 255) << 16) 
-          | (((unsigned char) g * 255) << 8) 
-          |  ((unsigned char) r * 255);
+    return  (((unsigned char) (a * 255)) << 24) 
+          | (((unsigned char) (b * 255)) << 16) 
+          | (((unsigned char) (g * 255)) << 8) 
+          |  ((unsigned char) (r * 255));
+  }
+
+  R_API Color srGetColorFromFloat(const glm::vec4& color)
+  {
+    return srGetColorFromFloat(color.x, color.y, color.z, color.w);
   }
 
   R_API glm::vec4 srGetFloatFromColor(Color c)
@@ -809,24 +814,29 @@ namespace sr {
     SRC->RenderBatch.CurrentColor = srGetColorFromFloat(r, g, b, a);
   }
 
+  R_API void srColor1c(Color color)
+  {
+    SRC->RenderBatch.CurrentColor = color;
+  }
+
   R_API void srEnd()
   {
     
   }
 
-  R_API void srDrawRectangle(float x, float y, float width, float height, float rotation)
+  R_API void srDrawRectangle(float x, float y, float width, float height, float rotation, float cornerRadius, Color color)
   {
-    srDrawRectangle(glm::vec2(x, y), glm::vec2(width, height), rotation);
+    srDrawRectangle(glm::vec2(x, y), glm::vec2(width, height), rotation, cornerRadius, color);
   }
 
 
-  R_API void srDrawRectangle(const glm::vec2& position, const glm::vec2& size, float rotation)
+  R_API void srDrawRectangle(const glm::vec2& position, const glm::vec2& size, float rotation, float cornerRadius, Color color)
   {
-    srDrawRectangle({position.x, position.y, size.x, size.y}, glm::vec2(0.0f), rotation);
+    srDrawRectangle({position.x, position.y, size.x, size.y}, glm::vec2(0.0f), rotation, cornerRadius, color);
   }
 
 
-  R_API void srDrawRectangle(const Rectangle& rect, glm::vec2& origin, float rotation)
+  R_API void srDrawRectangle(const Rectangle& rect, glm::vec2& origin, float rotation, float cornerRadius, Color color)
   {
     glm::vec2 topLeft;
     glm::vec2 topRight;
@@ -865,8 +875,14 @@ namespace sr {
       bottomRight.y = y + (dx + rect.Width)*sin + dy*cos;
     }
 
+    if (cornerRadius >= 0.0f)
+    {
+      
+    }
+
 
     srBegin(EBatchDrawMode::QUADS);
+    srColor1c(color);
 
     srVertex2f(topLeft);
     srVertex2f(topRight);
@@ -876,6 +892,71 @@ namespace sr {
     srEnd();
   }
 
+  R_API void srDrawCircle(const glm::vec2& center, float radius, Color color, unsigned int segmentCount)
+  {
+    srDrawArc(center, 0.0f, 360.0f, radius, color, segmentCount);
+  }
 
+  R_API void srDrawArc(const glm::vec2& center, float startAngle, float endAngle, float radius, Color color, unsigned int segmentCount)
+  {
+    srCheckRenderBatchLimit((segmentCount + 1) * 3);
 
+    // Use angle in radiens. Comes in as deg
+    startAngle = startAngle * DEG2RAD;
+    endAngle = endAngle * DEG2RAD;
+
+    const float angle = endAngle - startAngle;
+    const float degIncrease = angle / segmentCount;
+    glm::vec2 lastPosition = glm::vec2(radius * sinf(startAngle), radius * sinf(startAngle));
+
+    srBegin(TRIANGLES);
+    srColor1c(color);
+
+    float currentAngle = startAngle + degIncrease;
+    for (unsigned int i = 0; i <= segmentCount; i++)
+    {
+      glm::vec2 currentPosition(radius * sinf(currentAngle), radius * cosf(currentAngle));
+      
+      srVertex2f(center);
+      srVertex2f(center + lastPosition);
+      srVertex2f(center + currentPosition);
+
+      currentAngle += degIncrease;
+      lastPosition = currentPosition;
+    }
+
+    srEnd();
+  }
+
+  
+
+  // Path builder
+  
+  R_API void srBeginPath()
+  {
+    SRC->RenderBatch.Path.clear();
+  }
+
+  R_API void srEndPath(PathType type)
+  {
+    if (type & PathType_Fill)
+    {
+      SR_TRACE("Path fill");
+    }
+    if (type & PathType_Stroke)
+    {
+      SR_TRACE("Path Stroke");
+    }
+  }
+
+  // Flushing path
+  R_API void srAddPolyline(const std::vector<glm::vec2>& points, float thickness, Color color)
+  {
+    
+  }
+
+  R_API void srAddPolyFilled(const std::vector<glm::vec2>& points, Color color)
+  {
+    
+  }
 }
