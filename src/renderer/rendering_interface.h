@@ -50,6 +50,10 @@ namespace sr {
     R_API glm::vec4 srGetFloatFromColor(Color c);
 
     // Little bit of math
+    constexpr double PI = 3.14159265358979323846;
+
+    constexpr double DEG2RAD = (PI / 180.0);
+    constexpr double RAD2DEG = (180.0 / PI);
 
     template <typename T>
     T srMin(const T& a, const T& b)
@@ -68,6 +72,8 @@ namespace sr {
     {
         return srMin(srMax(value, min), max);
     }
+
+    
 
     // Shaders
     enum class EUniformLocation : int {

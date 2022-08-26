@@ -832,16 +832,37 @@ namespace sr {
     glm::vec2 topRight;
     glm::vec2 bottomLeft;
     glm::vec2 bottomRight;
+      // Draw rect with simple corners
 
     if (rotation == 0.0f)
     {
-      // Draw rect with simple corners
       float x = rect.X - origin.x;
       float y = rect.Y - origin.y;
       topLeft = glm::vec2(x, y + rect.Height);
       topRight = glm::vec2(x + rect.Width, y + rect.Height);
       bottomLeft = glm::vec2(x, y);
       bottomRight = glm::vec2(x + rect.Width, y);
+    }
+    else
+    {
+      float sin = sinf(rotation*DEG2RAD);
+      float cos = cosf(rotation*DEG2RAD);
+      float x = rect.X;
+      float y = rect.Y;
+      float dx = -origin.x;
+      float dy = -origin.y;
+
+      topLeft.x = x + dx*cos - (dy + rect.Height)*sin;
+      topLeft.y = y + dx*sin + (dy + rect.Height)*cos;
+
+      topRight.x = x + (dx + rect.Width)*cos - (dy + rect.Height)*sin;
+      topRight.y = y + (dx + rect.Width)*sin + (dy + rect.Height)*cos;
+
+      bottomLeft.x = x + dx*cos - dy*sin;
+      bottomLeft.y = y + dx*sin + dy*cos;
+
+      bottomRight.x = x + (dx + rect.Width)*cos - dy*sin;
+      bottomRight.y = y + (dx + rect.Width)*sin + dy*cos;
     }
 
 
