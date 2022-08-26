@@ -26,6 +26,11 @@ int main()
         { 0.0f,  0.5f, 0.0f},
         { 0.5f, -0.5f, 0.0f}
     };
+    initData.Colors = {
+        0xffff00ff,
+        0xffff00ff,
+        0xffff00ff
+    };
     initData.Indices = {
         0, 1, 2
     };
@@ -42,28 +47,13 @@ int main()
         sr::srClearColor(0.5f, 0.4f, 0.8f, 1.0f);
         sr::srClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-
-        sr::srBegin(sr::EBatchDrawMode::LINES);
-        sr::srVertex3f(-0.8f, 0.5f, 0.0f);
-        sr::srVertex3f(-0.2f, 0.5f, 0.0f);
-        sr::srVertex3f(-0.2f, 0.5f, 0.0f);
-        sr::srVertex3f(-0.2f, 0.1f, 0.0f);
-        sr::srEnd();
-        
-        sr::srBegin(sr::EBatchDrawMode::LINES);
-        sr::srVertex3f(-0.8f, -0.2f, 0.0f);
-        sr::srVertex3f(-0.8f, -0.8f, 0.0f);
-        sr::srVertex3f(-0.8f, -0.8f, 0.0f);
-        sr::srVertex3f( 0.1f, -0.8f, 0.0f);
-        sr::srEnd();
+        sr::srDrawRectangle(sr::Rectangle{0.0f, 0.0f, 1.0f, 1.0f}, glm::vec2{0.5f, 0.5f});
 
         
-
-
-
-        sr::srDrawMesh(mesh);
-
         sr::srDrawRenderBatch(&sr::SRC->RenderBatch);
+        
+
+        //sr::srDrawMesh(mesh);
 
         glfwSwapBuffers(window);
     }

@@ -10,9 +10,13 @@ const char* basicMeshVertexShader = R"(
   layout(location = 0) in vec3 vPosition;
   layout(location = 1) in vec3 vNormal;
   layout(location = 2) in vec2 vTexCoord;
+  layout(location = 3) in vec4 vColor;
+
+  out vec4 Color;
 
   void main()
   {
+    Color = vColor;
     gl_Position = vec4(vPosition, 1.0);
   }
 )";
@@ -22,9 +26,11 @@ const char* basicMeshFragmentShader = R"(
 
   layout(location = 0) out vec4 fragColor;
 
+  in vec4 Color;
+
   void main()
   {
-    fragColor = vec4(1.0, 0.0, 0.0, 1.0);
+    fragColor = Color;
   }
 )";
 
@@ -125,6 +131,29 @@ namespace sr {
   R_API void srViewport(float x, float y, float width, float height)
   {
     glCall(glViewport(x, y, width, height));
+  }
+
+  R_API Color srGetColorFromFloat(float r, float g, float b, float a)
+  {
+    // Clip values between 0 and 1
+    r = srClip(r, 0.0f, 1.0f);
+    g = srClip(g, 0.0f, 1.0f);
+    b = srClip(b, 0.0f, 1.0f);
+    a = srClip(a, 0.0f, 1.0f);
+
+    return  (((unsigned char) a * 255) << 24) 
+          | (((unsigned char) b * 255) << 16) 
+          | (((unsigned char) g * 255) << 8) 
+          |  ((unsigned char) r * 255);
+  }
+
+  R_API glm::vec4 srGetFloatFromColor(Color c)
+  {
+    float r = (c & 0x000000ff) >> 0;
+    float g = (c & 0x0000ff) >> 8;
+    float b = (c & 0x00ff) >> 16;
+    float a = (c & 0xff) >> 24;
+    return {r, g, b, a};
   }
 
 
@@ -283,6 +312,27 @@ namespace sr {
     return 0;
   }
 
+  R_API unsigned int srGetVertexAttributeTypeSize(EVertexAttributeType type)
+  {
+    switch (type)
+    {
+    case EVertexAttributeType::INT:     return sizeof(int);
+    case EVertexAttributeType::UINT:    return sizeof(unsigned int);
+    case EVertexAttributeType::BOOL:    return sizeof(bool);
+    case EVertexAttributeType::FLOAT:   return sizeof(float);
+    case EVertexAttributeType::FLOAT2:  return sizeof(float) * 2;
+    case EVertexAttributeType::INT2:    return sizeof(int) * 2;
+    case EVertexAttributeType::FLOAT3:  return sizeof(float) * 3;
+    case EVertexAttributeType::INT3:    return sizeof(int) * 3;
+    case EVertexAttributeType::FLOAT4:  return sizeof(float) * 4;
+    case EVertexAttributeType::INT4:    return sizeof(int) * 4;
+    case EVertexAttributeType::BYTE4:   return sizeof(unsigned char) * 4;
+    }
+    SR_TRACE("ERROR: Could not get vertex attrib type component count");
+
+    return 0;
+  }
+
   R_API unsigned int srGetGLVertexAttribType(EVertexAttributeType type)
   {
     switch (type)
@@ -302,6 +352,16 @@ namespace sr {
     }
     SR_TRACE("ERROR: Could not convert vertex attrib type");
     return 0;
+  }
+
+  R_API size_t srGetVertexLayoutSize(const VertexArrayLayout& layout)
+  {
+    size_t size = 0;
+    for (const VertexArrayLayoutElement& elem : layout)
+    {
+      size += srGetVertexAttributeTypeSize(elem.ElementType);
+    }
+    return size;
   }
 
   
@@ -369,6 +429,12 @@ namespace sr {
     {
       result.TextureCoords0 = new glm::vec2[result.VertexCount];
       memcpy(result.TextureCoords0, initData.TexCoord1.data(), result.VertexCount * sizeof(glm::vec2));
+    }
+
+    if (initData.Colors.size() > 0)
+    {
+      result.Colors = new Color[result.VertexCount];
+      memcpy(result.Colors, initData.Colors.data(), result.VertexCount * sizeof(Color));
     }
 
     if (result.ElementCount > 0)
@@ -441,8 +507,15 @@ namespace sr {
       for (const auto& buffer : mesh.VAO.VBOs)
       {
         srBindVertexBuffer(buffer.ID);
-        srSetVertexAttribute(buffer.Layout.Location, srGetVertexAttributeComponentCount(buffer.Layout.ElementType), srGetGLVertexAttribType(buffer.Layout.ElementType), buffer.Layout.Normalized, 0, 0);
-        srEnableVertexAttribute(buffer.Layout.Location);
+        
+        unsigned int vertexSize = srGetVertexLayoutSize(buffer.Layout);
+        unsigned int currentOffset = 0;
+        for (const VertexArrayLayoutElement& elem : buffer.Layout)
+        {
+          srSetVertexAttribute(elem.Location, srGetVertexAttributeComponentCount(elem.ElementType), srGetGLVertexAttribType(elem.ElementType), elem.Normalized, vertexSize, (const void*) currentOffset);
+          srEnableVertexAttribute(elem.Location);
+          currentOffset += srGetVertexAttributeTypeSize(elem.ElementType);
+        }
       }
     }
 
@@ -471,14 +544,14 @@ namespace sr {
     unsigned int vbo_position = srLoadVertexBuffer(mesh->Vertices, mesh->VertexCount * sizeof(glm::vec3));
     srEnableVertexAttribute(0);
     srSetVertexAttribute(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-    vertexArray.VBOs.push_back({VertexArrayLayoutElement(EVertexAttributeType::FLOAT3, 0), vbo_position});
+    vertexArray.VBOs.push_back({{VertexArrayLayoutElement(EVertexAttributeType::FLOAT3, 0)}, vbo_position});
 
     if (mesh->Normals)
     {
       unsigned int vbo_normal = srLoadVertexBuffer(mesh->Normals, mesh->VertexCount * sizeof(glm::vec3));
       srEnableVertexAttribute(1);
       srSetVertexAttribute(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
-      vertexArray.VBOs.push_back({VertexArrayLayoutElement(EVertexAttributeType::FLOAT3, 1), vbo_normal});
+      vertexArray.VBOs.push_back({{VertexArrayLayoutElement(EVertexAttributeType::FLOAT3, 1)}, vbo_normal});
     }
 
     if (mesh->TextureCoords0)
@@ -486,7 +559,15 @@ namespace sr {
       unsigned int vbo_textCoords = srLoadVertexBuffer(mesh->TextureCoords0, mesh->VertexCount * sizeof(glm::vec2));
       srEnableVertexAttribute(2);
       srSetVertexAttribute(2, 2, GL_FLOAT, GL_FALSE, 0, 0);
-      vertexArray.VBOs.push_back({VertexArrayLayoutElement(EVertexAttributeType::FLOAT2, 2), vbo_textCoords});
+      vertexArray.VBOs.push_back({{VertexArrayLayoutElement(EVertexAttributeType::FLOAT2, 2)}, vbo_textCoords});
+    }
+
+    if (mesh->Colors)
+    {
+      unsigned int vbo_colors = srLoadVertexBuffer(mesh->Colors, mesh->VertexCount * sizeof(Color));
+      srEnableVertexAttribute(3);
+      srSetVertexAttribute(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, 0, 0);
+      vertexArray.VBOs.push_back({{VertexArrayLayoutElement(EVertexAttributeType::BYTE4, 3, true)}, vbo_colors});
     }
 
     if (mesh->Indices)
@@ -527,6 +608,11 @@ namespace sr {
       delete[] mesh->Indices;
       mesh->Indices = NULL;
     }
+    if (mesh->Colors)
+    {
+      delete[] mesh->Colors;
+      mesh->Colors = NULL; 
+    }
   }
 
 
@@ -553,20 +639,48 @@ namespace sr {
     result.DrawCalls = new RenderBatch::DrawCall[SR_BATCH_DRAW_CALLS];
     result.VertexCounter = 0;
     
-    result.DrawBuffer.Vertices = new glm::vec3[bufferSize * 4];
-    memset(result.DrawBuffer.Vertices, 0, bufferSize * 4 * sizeof(glm::vec3));
+    result.DrawBuffer.Vertices = new RenderBatch::Vertex[bufferSize * 4];
+    memset(result.DrawBuffer.Vertices, 0, bufferSize * 4 * sizeof(RenderBatch::Vertex));
     result.DrawBuffer.Indices = new unsigned int[bufferSize * 6];
     memset(result.DrawBuffer.Indices, 0, bufferSize * 4 * sizeof(unsigned int));
     result.DrawBuffer.ElementCount = bufferSize * 4;
+
+
+    int k = 0;
+
+    // Indices can be initialized right now
+    for (int j = 0; j < (6*bufferSize); j += 6)
+    {
+        result.DrawBuffer.Indices[j] = 4*k;
+        result.DrawBuffer.Indices[j + 1] = 4*k + 1;
+        result.DrawBuffer.Indices[j + 2] = 4*k + 2;
+        result.DrawBuffer.Indices[j + 3] = 4*k;
+        result.DrawBuffer.Indices[j + 4] = 4*k + 2;
+        result.DrawBuffer.Indices[j + 5] = 4*k + 3;
+
+        k++;
+    }
+
 
     VertexBuffers glBinding;
     glBinding.VAO = srLoadVertexArray();
     srBindVertexArray(glBinding.VAO);
 
-    unsigned int vbo_position = srLoadVertexBuffer(result.DrawBuffer.Vertices, bufferSize * 4 * sizeof(glm::vec3));
+    unsigned int vbo = srLoadVertexBuffer(result.DrawBuffer.Vertices, bufferSize * 4 * sizeof(RenderBatch::Vertex));
     srEnableVertexAttribute(0);
-    srSetVertexAttribute(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-    glBinding.VBOs.push_back({VertexArrayLayoutElement(EVertexAttributeType::FLOAT3, 0), vbo_position});
+    srSetVertexAttribute(0, 3, GL_FLOAT, GL_FALSE, sizeof(RenderBatch::Vertex), 0);
+    srEnableVertexAttribute(1);
+    srSetVertexAttribute(1, 3, GL_FLOAT, GL_FALSE, sizeof(RenderBatch::Vertex), (const void*) offsetof(RenderBatch::Vertex, RenderBatch::Vertex::Normal));
+    srEnableVertexAttribute(2);
+    srSetVertexAttribute(2, 2, GL_FLOAT, GL_FALSE, sizeof(RenderBatch::Vertex), (const void*) offsetof(RenderBatch::Vertex, RenderBatch::Vertex::UV));
+    srEnableVertexAttribute(3);
+    srSetVertexAttribute(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(RenderBatch::Vertex), (const void*) offsetof(RenderBatch::Vertex, RenderBatch::Vertex::Color));
+    glBinding.VBOs.push_back({
+                            {VertexArrayLayoutElement(EVertexAttributeType::FLOAT3, 0),
+                            VertexArrayLayoutElement(EVertexAttributeType::FLOAT3, 1),
+                            VertexArrayLayoutElement(EVertexAttributeType::FLOAT2, 2),
+                            VertexArrayLayoutElement(EVertexAttributeType::BYTE4, 3)}
+                            , vbo});
 
     unsigned int ibo = srLoadElementBuffer(result.DrawBuffer.Indices, bufferSize * 6 * sizeof(unsigned int));
     glBinding.IBO = ibo;
@@ -611,13 +725,19 @@ namespace sr {
       for (const auto& buffer : batch->DrawBuffer.GlBinding.VBOs)
       {
         srBindVertexBuffer(buffer.ID);
-        srSetVertexAttribute(buffer.Layout.Location, srGetVertexAttributeComponentCount(buffer.Layout.ElementType), srGetGLVertexAttribType(buffer.Layout.ElementType), buffer.Layout.Normalized, 0, 0);
-        srEnableVertexAttribute(buffer.Layout.Location);
+        unsigned int vertexSize = srGetVertexLayoutSize(buffer.Layout);
+        unsigned int currentOffset = 0;
+        for (const VertexArrayLayoutElement& elem : buffer.Layout)
+        {
+          srSetVertexAttribute(elem.Location, srGetVertexAttributeComponentCount(elem.ElementType), srGetGLVertexAttribType(elem.ElementType), elem.Normalized, vertexSize, (const void*) currentOffset);
+          srEnableVertexAttribute(elem.Location);
+          currentOffset += srGetVertexAttributeTypeSize(elem.ElementType);
+        }
       }
     }
 
     srBindVertexBuffer(batch->DrawBuffer.GlBinding.VBOs[0].ID);
-    glCall(glBufferSubData(GL_ARRAY_BUFFER, 0, batch->VertexCounter * sizeof(glm::vec3), batch->DrawBuffer.Vertices));
+    glCall(glBufferSubData(GL_ARRAY_BUFFER, 0, batch->VertexCounter * sizeof(RenderBatch::Vertex), batch->DrawBuffer.Vertices));
 
     // Draw everything to current draw
     for (unsigned int i = 0, vertexOffset = 0; i <= batch->CurrentDraw; i++)
@@ -627,10 +747,14 @@ namespace sr {
       {
       case EBatchDrawMode::LINES:     glCall(glDrawArrays(GL_LINES, vertexOffset, batch->DrawCalls[i].VertexCount)); break;
       case EBatchDrawMode::TRIANGLES: glCall(glDrawArrays(GL_TRIANGLES, vertexOffset, batch->DrawCalls[i].VertexCount)); break;
-      case EBatchDrawMode::QUADS:     SR_TRACE("QUADS NO IMPLEMENTED YET!"); break;
+      case EBatchDrawMode::QUADS:     glCall(glDrawElements(GL_TRIANGLES, batch->DrawCalls[i].VertexCount/4*6, GL_UNSIGNED_INT, (GLvoid*) (vertexOffset / 4 * 6 * sizeof(unsigned int)))); break;
       }
-      vertexOffset += batch->DrawCalls[i].VertexCount;
+      vertexOffset += batch->DrawCalls[i].VertexCount + batch->DrawCalls[i].VertexAlignment;
     }
+
+    batch->CurrentDraw = 0;
+    batch->DrawCalls[0] = RenderBatch::DrawCall{};
+    batch->VertexCounter = 0;
   }
 
 
@@ -640,6 +764,10 @@ namespace sr {
     RenderBatch& rb = SRC->RenderBatch;
     if (rb.DrawCalls[rb.CurrentDraw].Mode != mode)
     {
+      if (rb.DrawCalls[rb.CurrentDraw].Mode == EBatchDrawMode::LINES) rb.DrawCalls[rb.CurrentDraw].VertexAlignment = rb.DrawCalls[rb.CurrentDraw].VertexCount % 4;
+      else if (rb.DrawCalls[rb.CurrentDraw].Mode == EBatchDrawMode::TRIANGLES) rb.DrawCalls[rb.CurrentDraw].VertexAlignment = 4 - (rb.DrawCalls[rb.CurrentDraw].VertexCount % 4);
+      else rb.DrawCalls[rb.CurrentDraw].VertexAlignment = 0;
+
       srIncreaseRenderBatchCurrentDraw(&rb);
       rb.DrawCalls[rb.CurrentDraw].Mode = mode;
       rb.DrawCalls[rb.CurrentDraw].VertexCount = 0;
@@ -656,17 +784,76 @@ namespace sr {
   {
     srCheckRenderBatchLimit(1);
 
-    SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter] = vertex;
+    SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter].Pos = vertex;
+    SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter].Normal = SRC->RenderBatch.CurrentNormal;
+    SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter].Color = SRC->RenderBatch.CurrentColor;
+
 
     SRC->RenderBatch.VertexCounter++;
     SRC->RenderBatch.DrawCalls[SRC->RenderBatch.CurrentDraw].VertexCount++;
   }
 
-  R_API void srEnd()
+  R_API void srVertex2f(float x, float y)
   {
-
+    srVertex3f(glm::vec3(x, y, SRC->RenderBatch.CurrentDepth));
   }
 
+  R_API void srVertex2f(const glm::vec2& vertex)
+  {
+    srVertex3f(glm::vec3(vertex.x, vertex.y, SRC->RenderBatch.CurrentDepth));
+  }
+
+
+  R_API void srColor4f(float r, float g, float b, float a)
+  {
+    SRC->RenderBatch.CurrentColor = srGetColorFromFloat(r, g, b, a);
+  }
+
+  R_API void srEnd()
+  {
+    
+  }
+
+  R_API void srDrawRectangle(float x, float y, float width, float height, float rotation)
+  {
+    srDrawRectangle(glm::vec2(x, y), glm::vec2(width, height), rotation);
+  }
+
+
+  R_API void srDrawRectangle(const glm::vec2& position, const glm::vec2& size, float rotation)
+  {
+    srDrawRectangle({position.x, position.y, size.x, size.y}, glm::vec2(0.0f), rotation);
+  }
+
+
+  R_API void srDrawRectangle(const Rectangle& rect, glm::vec2& origin, float rotation)
+  {
+    glm::vec2 topLeft;
+    glm::vec2 topRight;
+    glm::vec2 bottomLeft;
+    glm::vec2 bottomRight;
+
+    if (rotation == 0.0f)
+    {
+      // Draw rect with simple corners
+      float x = rect.X - origin.x;
+      float y = rect.Y - origin.y;
+      topLeft = glm::vec2(x, y + rect.Height);
+      topRight = glm::vec2(x + rect.Width, y + rect.Height);
+      bottomLeft = glm::vec2(x, y);
+      bottomRight = glm::vec2(x + rect.Width, y);
+    }
+
+
+    srBegin(EBatchDrawMode::QUADS);
+
+    srVertex2f(topLeft);
+    srVertex2f(topRight);
+    srVertex2f(bottomRight);
+    srVertex2f(bottomLeft);
+
+    srEnd();
+  }
 
 
 

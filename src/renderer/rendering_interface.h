@@ -37,6 +37,38 @@ namespace sr {
 
     R_API void srViewport(float x, float y, float width, float height);
 
+    // Colors
+    using Color = uint32_t;
+
+    R_API Color srGetColorFromFloat(float r, float g, float b, float a = 1.0f);
+    /**
+     * @brief Get color as vec4
+     * 
+     * @param c Color to convert
+     * @return glm::vec4 RGBA float color (range 0 - 1)
+     */
+    R_API glm::vec4 srGetFloatFromColor(Color c);
+
+    // Little bit of math
+
+    template <typename T>
+    T srMin(const T& a, const T& b)
+    {
+        return a < b ? a : b;
+    }
+
+    template <typename T>
+    T srMax(const T& a, const T& b)
+    {
+        return a > b ? a : b;
+    }
+
+    template <typename T>
+    T srClip(const T& value, const T& min, const T& max)
+    {
+        return srMin(srMax(value, min), max);
+    }
+
     // Shaders
     enum class EUniformLocation : int {
         MODEL_MATRIX            = 0,
@@ -84,6 +116,7 @@ namespace sr {
     };
 
     R_API unsigned int srGetVertexAttributeComponentCount(EVertexAttributeType type);
+    R_API unsigned int srGetVertexAttributeTypeSize(EVertexAttributeType type); // Return size in bits of type
     R_API unsigned int srGetGLVertexAttribType(EVertexAttributeType type);
 
     struct VertexArrayLayoutElement {
@@ -96,10 +129,11 @@ namespace sr {
 
     typedef std::vector<VertexArrayLayoutElement> VertexArrayLayout;
 
+    R_API size_t srGetVertexLayoutSize(const VertexArrayLayout& layout);
 
     struct VertexBuffers {
         struct VertBuf {
-            VertexArrayLayoutElement Layout;
+            VertexArrayLayout Layout;
             unsigned int ID;
         };
         unsigned int                VAO = 0;
@@ -113,6 +147,7 @@ namespace sr {
         glm::vec3* Vertices = NULL;
         glm::vec3* Normals = NULL;
         glm::vec2* TextureCoords0 = NULL;
+        Color*    Colors = NULL;
 
         unsigned int* Indices = NULL;
 
@@ -123,9 +158,10 @@ namespace sr {
     };
 
     struct MeshInit {
-        std::vector<glm::vec3> Vertices;
-        std::vector<glm::vec3> Normals;
-        std::vector<glm::vec2> TexCoord1;
+        std::vector<glm::vec3>  Vertices;
+        std::vector<glm::vec3>  Normals;
+        std::vector<glm::vec2>  TexCoord1;
+        std::vector<Color>      Colors;
 
         std::vector<unsigned int> Indices;
     };
@@ -177,9 +213,17 @@ namespace sr {
 
     struct RenderBatch
     {
+        struct Vertex
+        {
+            glm::vec3 Pos       = glm::vec3();
+            glm::vec3 Normal    = glm::vec3(0.0f, 0.0f, 1.0f);
+            glm::vec2 UV        = glm::vec2();
+            Color  Color        = 0xffffffff;
+        };
+
         struct Buffer
         {
-            glm::vec3*      Vertices = NULL;   // Drawing buffer
+            Vertex*         Vertices = NULL;   // Drawing buffer
             unsigned int*   Indices = NULL;    
             unsigned int    ElementCount = 0;
             VertexBuffers   GlBinding;    // Rendering buffer
@@ -196,6 +240,11 @@ namespace sr {
         DrawCall*       DrawCalls;       // size = SR_BATCH_DRAW_CALLS
         unsigned int    CurrentDraw = 0;
         unsigned int    VertexCounter = 0;
+
+        double          CurrentDepth = 0;
+
+        glm::vec3       CurrentNormal;
+        Color           CurrentColor;
     };
 
     /**
@@ -213,8 +262,25 @@ namespace sr {
     R_API void srBegin(EBatchDrawMode mode);
     R_API void srVertex3f(float x, float y, float z);
     R_API void srVertex3f(const glm::vec3& vertex);
+    R_API void srVertex2f(float x, float y);
+    R_API void srVertex2f(const glm::vec2& vertex);
+    R_API void srColor4f(float r, float g, float b, float a);
     R_API void srEnd();
     
+    // More high level rendering methods
+
+    struct Rectangle 
+    {
+        float X;
+        float Y;
+        float Width;
+        float Height;
+    };
+
+
+    R_API void srDrawRectangle(float x, float y, float width, float height, float rotation = 0.0f);
+    R_API void srDrawRectangle(const glm::vec2& position, const glm::vec2& size, float rotation = 0.0f);
+    R_API void srDrawRectangle(const Rectangle& rect, glm::vec2& origin, float rotation = 0.0f);
 
     struct SRContext
     {
