@@ -15,6 +15,7 @@ namespace sr {
 
     R_API void srLoad(SRLoadProc loadAddress);
     R_API void srTerminate();
+    R_API void srInitGL();
 
     R_API void srInitContext(SRContext* context);
 
@@ -315,6 +316,7 @@ namespace sr {
     R_API void srVertex2f(const glm::vec2& vertex);
     R_API void srColor1c(Color color);
     R_API void srColor4f(float r, float g, float b, float a);
+    R_API void srColor4f(const glm::vec4& color);
     R_API void srEnd();
 
     
@@ -338,7 +340,9 @@ namespace sr {
     R_API void srPathSetStrokeEnabled(bool showStroke);
     R_API void srPathSetFillEnabled(bool fill);
     R_API void srPathSetFillColor(Color color);             
+    R_API void srPathSetFillColor(const glm::vec4& color);             
     R_API void srPathSetStrokeColor(Color color);             
+    R_API void srPathSetStrokeColor(const glm::vec4& color);             
     R_API void srPathSetStrokeWidth(float width);
 
     R_API PathBuilder::PathStyleIndex& srPathBuilderNewStyle();

@@ -49,7 +49,8 @@ int main()
     float rectRotation = 0.0f;
     float cornerRadius = 0.0f;
     glm::vec2 rectSize = {100.0f, 100.0f};
-    glm::vec4 currentColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glm::vec4 currentMeshColor(1.0f, 1.0f, 1.0f, 1.0f);
+    glm::vec4 currentLineColor(1.0f, 0.0f, 0.0f, 1.0f);
 
     while (!glfwWindowShouldClose(window))
     {
@@ -69,7 +70,8 @@ int main()
         ImGui::SliderFloat("Rect Rotation", &rectRotation, -360.0f, 360.0f);
         ImGui::SliderFloat("Corner Radius", &cornerRadius, 0.0f, 1.0f);
         ImGui::SliderFloat2("Rect Size", glm::value_ptr(rectSize), 0.1f, 500.0f);
-        ImGui::ColorPicker4("CurrentColor", glm::value_ptr(currentColor));
+        ImGui::ColorEdit4("LineColor", glm::value_ptr(currentLineColor));
+        ImGui::ColorEdit4("CurrentColor", glm::value_ptr(currentMeshColor));
         ImGui::End();   
 
         ImGui::Render();
@@ -79,21 +81,25 @@ int main()
         // SR Rendering
         sr::srNewFrame(width, height);
 
+        const glm::vec2& halfRectSize = rectSize / 2.0f;
+
+
         //sr::srDrawRectangle(sr::Rectangle{0.0f, 0.0f, 1.0f, 1.0f}, glm::vec2{0.5f, 0.5f}, rectRotation, sr::srGetColorFromFloat(currentColor.x, currentColor.y, currentColor.z, currentColor.w));
 
         //sr::srDrawCircle(glm::vec2(0.0f, 0.0f), 0.2f, sr::srGetColorFromFloat(currentColor));
-        sr::srPathSetStrokeEnabled(true);        
-        sr::srPathSetFillEnabled(false);
 
-        sr::srPathSetStrokeColor(sr::srGetColorFromFloat(1.0f, 0.0f, 0.0f, 1.0f));
-        sr::srPathSetFillColor(sr::srGetColorFromFloat(1.0f, 0.0f, 0.0f, 1.0f));
-        sr::srPathRectangle({0.0f, 0.0f, rectSize.x, rectSize.y}, rectSize / 2.0f, rectRotation, 0.0f);
-        
-        sr::srPathSetStrokeEnabled(false);
+        sr::srPathSetStrokeEnabled(false);        
         sr::srPathSetFillEnabled(true);
+
+        sr::srPathSetStrokeColor(currentLineColor);
+        sr::srPathSetFillColor(currentMeshColor);
+        sr::srPathRectangle({0.0f, 0.0f, rectSize.x, rectSize.y}, rectSize / 2.0f, 0.0f, 0.0f);
         
-        sr::srPathSetStrokeColor(sr::srGetColorFromFloat(1.0f, 0.0f, 0.0f, 1.0f));
-        sr::srPathSetFillColor(sr::srGetColorFromFloat(0.0f, 1.0f, 0.0f, 1.0f));
+        sr::srPathSetStrokeEnabled(true);
+        sr::srPathSetFillEnabled(false);
+        
+        sr::srPathSetStrokeColor(currentLineColor);
+        sr::srPathSetFillColor(currentMeshColor);
         sr::srPathRectangle({0.0f, 0.0f, rectSize.x, rectSize.y}, rectSize / 2.0f, rectRotation, cornerRadius);
 
         //sr::srDrawMesh(mesh);

@@ -88,7 +88,7 @@ namespace sr {
   R_API void srLoad(SRLoadProc loadAddress)
   {
     gladLoadGLLoader(loadAddress);
-    SR_TRACE("OpenGL-Context: %s", glGetString(GL_VERSION));
+    srInitGL();
     if (SRC == NULL)
     {
       SRC = new SRContext();
@@ -111,6 +111,12 @@ namespace sr {
     }
   }
 
+  R_API void srInitGL()
+  {
+    SR_TRACE("OpenGL-Context: %s", glGetString(GL_VERSION));
+    glCall(glEnable(GL_DEPTH_TEST));
+  }
+
   R_API void srInitContext(SRContext* context)
   {
     if (context->DefaultShader.ID == 0)
@@ -130,6 +136,7 @@ namespace sr {
     const float halfHeight = frameHeight / 2.0f;
 
     SRC->CurrentProjection = glm::orthoLH(-halfWidth, halfWidth, -halfHeight, halfHeight, -1.0f, 1.0f);
+    SRC->RenderBatch.CurrentDepth = 0.0f;
   }
   
   R_API void srEndFrame()
@@ -804,9 +811,13 @@ namespace sr {
     RenderBatch& rb = SRC->RenderBatch;
     if (rb.DrawCalls[rb.CurrentDraw].Mode != mode)
     {
-      if (rb.DrawCalls[rb.CurrentDraw].Mode == EBatchDrawMode::LINES) rb.DrawCalls[rb.CurrentDraw].VertexAlignment = rb.DrawCalls[rb.CurrentDraw].VertexCount % 4;
-      else if (rb.DrawCalls[rb.CurrentDraw].Mode == EBatchDrawMode::TRIANGLES) rb.DrawCalls[rb.CurrentDraw].VertexAlignment = 4 - (rb.DrawCalls[rb.CurrentDraw].VertexCount % 4);
+      if (rb.DrawCalls[rb.CurrentDraw].Mode == EBatchDrawMode::LINES) 
+        rb.DrawCalls[rb.CurrentDraw].VertexAlignment = rb.DrawCalls[rb.CurrentDraw].VertexCount % 4;
+      else if (rb.DrawCalls[rb.CurrentDraw].Mode == EBatchDrawMode::TRIANGLES)
+        rb.DrawCalls[rb.CurrentDraw].VertexAlignment = 4 - (rb.DrawCalls[rb.CurrentDraw].VertexCount % 4);
       else rb.DrawCalls[rb.CurrentDraw].VertexAlignment = 0;
+
+      rb.VertexCounter += rb.DrawCalls[rb.CurrentDraw].VertexAlignment; // Offset vertex counter so it is all nice
 
       srIncreaseRenderBatchCurrentDraw(&rb);
       rb.DrawCalls[rb.CurrentDraw].Mode = mode;
@@ -849,6 +860,11 @@ namespace sr {
     SRC->RenderBatch.CurrentColor = srGetColorFromFloat(r, g, b, a);
   }
 
+  R_API void srColor4f(const glm::vec4& color)
+  {
+    SRC->RenderBatch.CurrentColor = srGetColorFromFloat(color);
+  }
+
   R_API void srColor1c(Color color)
   {
     SRC->RenderBatch.CurrentColor = color;
@@ -856,7 +872,7 @@ namespace sr {
 
   R_API void srEnd()
   {
-    
+    SRC->RenderBatch.CurrentDepth -= 0.0001f;
   }
 
   R_API void srDrawRectangle(float x, float y, float width, float height, float rotation, float cornerRadius, Color color)
@@ -1103,7 +1119,11 @@ namespace sr {
     PathBuilder::PathStyleIndex& styleIndex = srPathBuilderNewStyle();
     styleIndex.second.FillColor = color;
     SRC->RenderBatch.Path.CurrentPathStyle.FillColor = color;
+  }
 
+  R_API void srPathSetFillColor(const glm::vec4& color)
+  {
+    srPathSetFillColor(srGetColorFromFloat(color));
   }
 
   R_API void srPathSetStrokeColor(Color color)
@@ -1112,6 +1132,12 @@ namespace sr {
     styleIndex.second.StrokeColor = color;
     SRC->RenderBatch.Path.CurrentPathStyle.StrokeColor = color;
   }
+
+  R_API void srPathSetStrokeColor(const glm::vec4& color)
+  {
+    srPathSetStrokeColor(srGetColorFromFloat(color));
+  }
+
 
 
   R_API void srPathSetStrokeWidth(float width)
