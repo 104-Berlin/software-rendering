@@ -136,10 +136,10 @@ namespace sr {
   R_API Color srGetColorFromFloat(float r, float g, float b, float a)
   {
     // Clip values between 0 and 1
-    r = srClip(r, 0.0f, 1.0f);
-    g = srClip(g, 0.0f, 1.0f);
-    b = srClip(b, 0.0f, 1.0f);
-    a = srClip(a, 0.0f, 1.0f);
+    r = srClamp(r, 0.0f, 1.0f);
+    g = srClamp(g, 0.0f, 1.0f);
+    b = srClamp(b, 0.0f, 1.0f);
+    a = srClamp(a, 0.0f, 1.0f);
 
     return  (((unsigned char) (a * 255)) << 24) 
           | (((unsigned char) (b * 255)) << 16) 
@@ -934,29 +934,293 @@ namespace sr {
   
   R_API void srBeginPath()
   {
-    SRC->RenderBatch.Path.clear();
+    SRC->RenderBatch.Path.Styles.clear();
+    SRC->RenderBatch.Path.Points.clear();
   }
 
-  R_API void srEndPath(PathType type)
+  R_API void srEndPath()
   {
-    if (type & PathType_Fill)
+    if (SRC->RenderBatch.Path.Points.size() == 0) return;
+
+    if (SRC->RenderBatch.Path.RenderType & PathType_Fill)
     {
-      SR_TRACE("Path fill");
+      srAddPolyFilled(SRC->RenderBatch.Path);
     }
-    if (type & PathType_Stroke)
+    if (SRC->RenderBatch.Path.RenderType & PathType_Stroke)
     {
-      SR_TRACE("Path Stroke");
+      srAddPolyline(SRC->RenderBatch.Path);
     }
   }
+
+  R_API void srPathLineTo(const glm::vec2& position)
+  {
+    SRC->RenderBatch.Path.Points.push_back(position);
+  }
+
+  R_API void srPathArc(const glm::vec2& center, float startAngle, float endAngle, float radius, unsigned int segmentCount)
+  {
+        // Use angle in radiens. Comes in as deg
+    startAngle = startAngle * DEG2RAD;
+    endAngle = endAngle * DEG2RAD;
+
+    const float angle = endAngle - startAngle;
+    const float degIncrease = angle / segmentCount;
+
+    float currentAngle = startAngle;
+    for (unsigned int i = 0; i <= segmentCount; i++)
+    {
+      glm::vec2 currentPosition(radius * sinf(currentAngle), radius * cosf(currentAngle));
+      
+      SRC->RenderBatch.Path.Points.push_back(center + currentPosition);
+      currentAngle += degIncrease;
+    }
+  }
+
+  R_API void srPathRectangle(const Rectangle& rect, const glm::vec2& origin, float rotation, float cornerRadius)
+  {
+    // We want fresh path, so nothing connects to the previus
+    srEndPath();
+    srBeginPath();
+
+    glm::vec2 topLeft;
+    glm::vec2 topRight;
+    glm::vec2 bottomLeft;
+    glm::vec2 bottomRight;
+      // Draw rect with simple corners
+
+    
+
+    float sin = rotation != 0 ? sinf(rotation*DEG2RAD) : 0;
+    float cos = rotation != 0 ? cosf(rotation*DEG2RAD) : 1;
+    if (rotation == 0.0f)
+    {
+      float x = rect.X - origin.x;
+      float y = rect.Y - origin.y;
+      topLeft = glm::vec2(x, y + rect.Height);
+      topRight = glm::vec2(x + rect.Width, y + rect.Height);
+      bottomLeft = glm::vec2(x, y);
+      bottomRight = glm::vec2(x + rect.Width, y);
+    }
+    else 
+    {
+
+      float x = rect.X;
+      float y = rect.Y;
+      float dx = -origin.x;
+      float dy = -origin.y;
+
+      topLeft.x = x + dx*cos - (dy + rect.Height)*sin;
+      topLeft.y = y + dx*sin + (dy + rect.Height)*cos;
+
+      topRight.x = x + (dx + rect.Width)*cos - (dy + rect.Height)*sin;
+      topRight.y = y + (dx + rect.Width)*sin + (dy + rect.Height)*cos;
+
+      bottomLeft.x = x + dx*cos - dy*sin;
+      bottomLeft.y = y + dx*sin + dy*cos;
+
+      bottomRight.x = x + (dx + rect.Width)*cos - dy*sin;
+      bottomRight.y = y + (dx + rect.Width)*sin + dy*cos;
+    }
+
+    // Start with top left (right of arc) corner
+    cornerRadius = srClamp(cornerRadius, 0.0f, 1.0f);
+    const float min_size = (srMin(rect.Width, rect.Height) / 2.0f) * cornerRadius;
+    const glm::vec2 cornerSize = glm::vec2(min_size, min_size);
+    const glm::vec2 cornerSize_Rotated = rotation != 0.0f ? glm::vec2((cornerSize.x * cos) - (sin * cornerSize.y), (cornerSize.y * sin) + (cos * cornerSize.y)) : cornerSize;
+
+
+    if (cornerRadius > 0.0f)
+    {
+      // Find arccenterRadius
+      srPathLineTo(topLeft - glm::vec2(0.0f, cornerSize_Rotated.y));
+      srPathArc(topLeft + glm::vec2{cornerSize_Rotated.x, -cornerSize_Rotated.y}, -90.0f - rotation, -rotation, min_size);
+      srPathLineTo(topLeft + glm::vec2{cornerSize_Rotated.x, 0.0f});
+      //srPathLineTo(topRight - glm::vec2{cornerSize_Rotated.x, 0.0f});
+      srPathArc(topRight - cornerSize_Rotated, 0.0f - rotation, 90.0f - rotation, min_size);
+      srPathLineTo(bottomRight + glm::vec2{0.0f, cornerSize_Rotated.y});
+      srPathArc(bottomRight + glm::vec2{-cornerSize_Rotated.x, cornerSize_Rotated.y}, 90.0f - rotation, 180.0f - rotation, min_size);
+      srPathLineTo(bottomLeft + glm::vec2{cornerSize_Rotated.x, 0.0f});
+      srPathArc(bottomLeft + cornerSize_Rotated, 180.0f - rotation, 270.0f - rotation, min_size);
+      srPathLineTo(topLeft - glm::vec2{0.0f, cornerSize_Rotated.y});
+    }
+    else
+    {
+      srPathLineTo(topLeft);
+      srPathLineTo(topRight);
+      srPathLineTo(bottomRight);
+      srPathLineTo(bottomLeft);
+    }
+
+    srEndPath();
+  }
+
+  R_API void srPathSetStrokeEnabled(bool showStroke)
+  {
+    if (showStroke) SRC->RenderBatch.Path.RenderType |= PathType_Stroke;
+    else SRC->RenderBatch.Path.RenderType &= ~PathType_Stroke;
+  }
+
+  R_API void srPathSetFillEnabled(bool fill)
+  {
+    if (fill) SRC->RenderBatch.Path.RenderType |= PathType_Fill;
+    else SRC->RenderBatch.Path.RenderType &= ~PathType_Fill;
+  }
+
+  R_API void srPathSetFillColor(Color color)
+  {
+    PathBuilder::PathStyleIndex& styleIndex = srPathBuilderNewStyle();
+    styleIndex.second.FillColor = color;
+    SRC->RenderBatch.Path.CurrentPathStyle.FillColor = color;
+
+  }
+
+  R_API void srPathSetStrokeColor(Color color)
+  {
+    PathBuilder::PathStyleIndex& styleIndex = srPathBuilderNewStyle();
+    styleIndex.second.StrokeColor = color;
+    SRC->RenderBatch.Path.CurrentPathStyle.StrokeColor = color;
+  }
+
+
+  R_API void srPathSetStrokeWidth(float width)
+  {
+    PathBuilder::PathStyleIndex& styleIndex = srPathBuilderNewStyle();
+    styleIndex.second.StrokeWidth = width;
+    SRC->RenderBatch.Path.CurrentPathStyle.StrokeWidth = width;
+  }
+
+  R_API PathBuilder::PathStyleIndex& srPathBuilderNewStyle()
+  {
+    PathBuilder& pb = SRC->RenderBatch.Path;
+
+    if (pb.Styles.size() == 0)
+    {
+      PathBuilder::PathStyleIndex newStyleIndex;
+      newStyleIndex.first = pb.Points.size();
+      newStyleIndex.second = pb.CurrentPathStyle;
+      pb.Styles.push_back(newStyleIndex);
+      pb.PreviousStyleVertexIndex = 0;
+      return pb.Styles.back();
+    }
+
+    PathBuilder::PathStyleIndex& lastStyle = pb.Styles.back();
+
+    // We have no new points, we can just modify the current one
+    if (pb.Points.size() - (pb.PreviousStyleVertexIndex + lastStyle.first) == 0)
+    {
+      return lastStyle;
+    }
+
+    lastStyle.first = pb.Points.size() - pb.PreviousStyleVertexIndex;
+    pb.PreviousStyleVertexIndex += lastStyle.first;
+
+    // Create new style index
+    PathBuilder::PathStyleIndex newStyleIndex;
+    PathStyle newStyle = lastStyle.second;
+
+    pb.Styles.push_back(newStyleIndex);
+    return pb.Styles.back();
+  }
+
+
 
   // Flushing path
-  R_API void srAddPolyline(const std::vector<glm::vec2>& points, float thickness, Color color)
+  R_API void srAddPolyline(const PathBuilder& pb)
   {
-    
+    const size_t count = pb.Points.size();
+    srCheckRenderBatchLimit(count + 4);
+
+    PathStyle currentStyle = pb.CurrentPathStyle;
+    unsigned int nextStyleChange = 0;
+    unsigned int currentStyleIndex = 0;
+    if (pb.Styles.size() > 0)
+    {
+      currentStyle = pb.Styles[0].second;
+      nextStyleChange = pb.Styles[0].first;
+    }
+
+    srBegin(LINES);
+    srColor1c(currentStyle.StrokeColor);
+
+    for (size_t i1 = 0; i1 < count; i1++)
+    {
+      const size_t i2 = (i1 + 1) % count;
+      const glm::vec2& p1 = pb.Points[i1];
+      const glm::vec2& p2 = pb.Points[i2];
+      
+      glm::vec2 delta = p2 - p1;
+      delta = glm::normalize(delta);
+
+      delta *= currentStyle.StrokeWidth * 0.5f;
+
+      /*srVertex2f(p1.x + delta.y, p1.y - delta.x);
+      srVertex2f(p2.x + delta.y, p2.y - delta.x);
+      srVertex2f(p2.x - delta.y, p2.y + delta.x);
+      srVertex2f(p1.x - delta.y, p1.y + delta.x);*/
+
+      srVertex2f(p1);
+      srVertex2f(p2);
+
+      if (nextStyleChange <= i1)
+      {
+        currentStyleIndex++;
+        if (currentStyleIndex < pb.Styles.size())
+        {
+          currentStyle = pb.Styles[currentStyleIndex].second;
+          nextStyleChange += pb.Styles[currentStyleIndex].first;
+          srColor1c(currentStyle.StrokeColor);
+        }
+      }
+    }
+
+    srEnd();
   }
 
-  R_API void srAddPolyFilled(const std::vector<glm::vec2>& points, Color color)
+  R_API void srAddPolyFilled(const PathBuilder& pb)
   {
-    
+    if (pb.Points.size() < 3) 
+    {
+      SR_TRACE("Not enough points for fill");
+      return;
+    }
+    const size_t count = pb.Points.size();
+    srCheckRenderBatchLimit(count * 3);
+
+
+    PathStyle currentStyle = pb.CurrentPathStyle;
+    unsigned int nextStyleChange = 0;
+    unsigned int currentStyleIndex = 0;
+    if (pb.Styles.size() > 0)
+    {
+      currentStyle = pb.Styles[0].second;
+      nextStyleChange = pb.Styles[0].first;
+    }
+
+
+
+    srBegin(TRIANGLES);
+    srColor1c(currentStyle.FillColor);
+
+    for (size_t i = 1; i < count; i++)
+    {
+      const size_t i2 = (i + 1) % count;
+      srVertex2f(pb.Points[0]);
+      srVertex2f(pb.Points[i]);
+      srVertex2f(pb.Points[i2]);
+
+      if (nextStyleChange <= i)
+      {
+        currentStyleIndex++;
+        if (currentStyleIndex < pb.Styles.size())
+        {
+          currentStyle = pb.Styles[currentStyleIndex].second;
+          nextStyleChange += pb.Styles[currentStyleIndex].first;
+          srColor1c(currentStyle.FillColor);
+        }
+      }
+
+    }
+
+    srEnd();
   }
 }

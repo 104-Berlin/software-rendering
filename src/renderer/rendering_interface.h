@@ -75,7 +75,7 @@ namespace sr {
     }
 
     template <typename T>
-    T srClip(const T& value, const T& min, const T& max)
+    T srClamp(const T& value, const T& min, const T& max)
     {
         return srMin(srMax(value, min), max);
     }
@@ -224,6 +224,33 @@ namespace sr {
         LINES
     };
 
+    typedef uint32_t PathType;
+    enum PathType_
+    {
+        PathType_Stroke = 1 << 0,
+        PathType_Fill   = 1 << 1
+    };
+
+
+    struct PathStyle
+    {
+        float StrokeWidth   = 0.01f;
+        Color StrokeColor   = 0xffffffff;
+        Color FillColor     = 0xffffffff;
+    };
+
+    struct PathBuilder
+    {
+        std::vector<glm::vec2>  Points;
+        PathStyle               CurrentPathStyle; // Not used right now. Can be removed
+        PathType                RenderType = 0;
+
+        using PathStyleIndex = std::pair<unsigned int, PathStyle>;
+        std::vector<PathStyleIndex> Styles;
+
+        unsigned int            PreviousStyleVertexIndex = 0;
+    };
+
     struct RenderBatch
     {
         struct Vertex
@@ -249,6 +276,8 @@ namespace sr {
             unsigned int    VertexAlignment = 0; // Number for alining (LINE, TRIANGLES) to quads
         };
 
+        
+
         Buffer          DrawBuffer;
         DrawCall*       DrawCalls;       // size = SR_BATCH_DRAW_CALLS
         unsigned int    CurrentDraw = 0;
@@ -260,7 +289,7 @@ namespace sr {
         Color           CurrentColor;
 
         // Path builder
-        std::vector<glm::vec2> Path;
+        PathBuilder     Path;
     };
 
     /**
@@ -284,10 +313,9 @@ namespace sr {
     R_API void srColor4f(float r, float g, float b, float a);
     R_API void srEnd();
 
-
     
 
-    // More high level rendering methods
+    // Path builder. Begin with srBeginPath(), and end with srEndPath(type). The type can be PathType_Stroke, PathType_Fill. You can also or them together to get stroke and fill 
 
     struct Rectangle 
     {
@@ -297,6 +325,26 @@ namespace sr {
         float Height;
     };
 
+    R_API void srBeginPath();
+    R_API void srEndPath();
+    R_API void srPathLineTo(const glm::vec2& position);
+    R_API void srPathArc(const glm::vec2& center, float startAngle, float endAngle, float radius, unsigned int segmentCount = 22);
+    R_API void srPathRectangle(const Rectangle& rect, const glm::vec2& origin, float rotation = 0.0f, float cornerRadius = 0.0f);
+
+    R_API void srPathSetStrokeEnabled(bool showStroke);
+    R_API void srPathSetFillEnabled(bool fill);
+    R_API void srPathSetFillColor(Color color);             
+    R_API void srPathSetStrokeColor(Color color);             
+    R_API void srPathSetStrokeWidth(float width);
+
+    R_API PathBuilder::PathStyleIndex& srPathBuilderNewStyle();
+
+    // Flushing path
+    R_API void srAddPolyline(const PathBuilder& pathBuilder);
+    R_API void srAddPolyFilled(const PathBuilder& pathBuilder);
+
+
+    // More high level rendering methods
 
     R_API void srDrawRectangle(float x, float y, float width, float height, float rotation = 0.0f, float cornerRadius = 0.0f, Color color = 0xffffffff);
     R_API void srDrawRectangle(const glm::vec2& position, const glm::vec2& size, float rotation = 0.0f, float cornerRadius = 0.0f, Color color = 0xffffffff);
@@ -304,22 +352,6 @@ namespace sr {
     R_API void srDrawCircle(const glm::vec2& center, float radius, Color color = 0xffffffff, unsigned int segmentCount = 36);
     R_API void srDrawArc(const glm::vec2& center, float startAngle, float endAngle, float radius, Color color = 0xffffffff, unsigned int segmentCount = 22);
 
-
-
-    // Path builder. Begin with srBeginPath(), and end with srEndPath(type). The type can be PathType_Stroke, PathType_Fill. You can also or them together to get stroke and fill 
-    typedef uint32_t PathType;
-    enum PathType_
-    {
-        PathType_Stroke = 1 << 0,
-        PathType_Fill   = 1 << 1
-    };
-
-    R_API void srBeginPath();
-    R_API void srEndPath(PathType type);
-
-    // Flushing path
-    R_API void srAddPolyline(const std::vector<glm::vec2>& points, float thickness = 0.1f, Color color = 0xffffffff);
-    R_API void srAddPolyFilled(const std::vector<glm::vec2>& points, Color color = 0xffffffff);
 
 
 

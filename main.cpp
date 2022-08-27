@@ -16,7 +16,7 @@ int main()
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // Required on Mac
 
-    GLFWwindow* window = glfwCreateWindow(1270, 720, "Rendering", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(800, 800, "Rendering", NULL, NULL);
 
     glfwMakeContextCurrent(window);
     sr::srLoad((sr::SRLoadProc)glfwGetProcAddress);
@@ -74,7 +74,20 @@ int main()
 
         //sr::srDrawRectangle(sr::Rectangle{0.0f, 0.0f, 1.0f, 1.0f}, glm::vec2{0.5f, 0.5f}, rectRotation, sr::srGetColorFromFloat(currentColor.x, currentColor.y, currentColor.z, currentColor.w));
 
-        sr::srDrawCircle(glm::vec2(0.0f, 0.0f), 0.2f, sr::srGetColorFromFloat(currentColor));
+        //sr::srDrawCircle(glm::vec2(0.0f, 0.0f), 0.2f, sr::srGetColorFromFloat(currentColor));
+        sr::srPathSetStrokeEnabled(true);        
+        sr::srPathSetFillEnabled(false);
+
+        sr::srPathSetStrokeColor(sr::srGetColorFromFloat(1.0f, 0.0f, 0.0f, 1.0f));
+        sr::srPathSetFillColor(sr::srGetColorFromFloat(1.0f, 0.0f, 0.0f, 1.0f));
+        sr::srPathRectangle({0.0f, 0.0f, 0.5f, 1.0f}, {0.25f, 0.25f}, 0.0f, 0.0f);
+        
+        sr::srPathSetStrokeEnabled(false);
+        sr::srPathSetFillEnabled(true);
+        
+        sr::srPathSetStrokeColor(sr::srGetColorFromFloat(0.0f, 1.0f, 0.0f, 1.0f));
+        sr::srPathSetFillColor(sr::srGetColorFromFloat(0.0f, 1.0f, 0.0f, 1.0f));
+        sr::srPathRectangle({0.0f, 0.0f, 0.5f, 1.0f}, {0.25f, 0.25f}, 0.0f, 1.0f);
 
 
         sr::srDrawRenderBatch(&sr::SRC->RenderBatch);
