@@ -12,12 +12,14 @@ const char* basicMeshVertexShader = R"(
   layout(location = 2) in vec2 vTexCoord;
   layout(location = 3) in vec4 vColor;
 
+  uniform mat4 ProjectionMatrix = mat4(1.0);
+
   out vec4 Color;
 
   void main()
   {
     Color = vColor;
-    gl_Position = vec4(vPosition, 1.0);
+    gl_Position = ProjectionMatrix * vec4(vPosition, 1.0);
   }
 )";
 
@@ -116,6 +118,23 @@ namespace sr {
       SRC->DefaultShader = srLoadShader(basicMeshVertexShader, basicMeshFragmentShader);
     }
     context->RenderBatch = srLoadRenderBatch(5000);
+  }
+
+  R_API void srNewFrame(int frameWidth, int frameHeight)
+  {
+    srViewport(0, 0, (float)frameWidth, (float)frameHeight);
+    srClearColor(0.5f, 0.4f, 0.8f, 1.0f);
+    srClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+    const float halfWidth = frameWidth / 2.0f;
+    const float halfHeight = frameHeight / 2.0f;
+
+    SRC->CurrentProjection = glm::orthoLH(-halfWidth, halfWidth, -halfHeight, halfHeight, -1.0f, 1.0f);
+  }
+  
+  R_API void srEndFrame()
+  {
+    srDrawRenderBatch(&SRC->RenderBatch);
   }
 
   R_API void srClear(int mask)
@@ -293,6 +312,23 @@ namespace sr {
   {
     glCall(glUseProgram(shader.ID));
   }
+
+  R_API void srSetDefaultShaderUniforms(Shader shader)
+  {
+    srUseShader(shader);
+
+    unsigned int projectionMatrixId = glGetUniformLocation(shader.ID, "ProjectionMatrix");
+    if (projectionMatrixId == -1)
+    {
+      SR_TRACE("Could not find projection matrix uniform location!");
+    }
+    else
+    {
+      glUniformMatrix4fv(projectionMatrixId, 1, GL_FALSE, glm::value_ptr(SRC->CurrentProjection));
+    }
+  }
+
+
 
   // Vertex Arrays
 
@@ -504,8 +540,7 @@ namespace sr {
       SR_TRACE("ERROR: DrawMesh failed. VertexArray not initialized!");
       return;
     }
-    srUseShader(SRC->DefaultShader);
-
+    srSetDefaultShaderUniforms(SRC->DefaultShader);
 
     if (!srBindVertexArray(mesh.VAO.VAO))
     {
@@ -723,7 +758,7 @@ namespace sr {
 
   R_API void srDrawRenderBatch(RenderBatch* batch)
   {
-    srUseShader(SRC->DefaultShader);
+    srSetDefaultShaderUniforms(SRC->DefaultShader);
 
     if (!srBindVertexArray(batch->DrawBuffer.GlBinding.VAO))
     {

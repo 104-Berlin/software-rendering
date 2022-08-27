@@ -18,6 +18,9 @@ namespace sr {
 
     R_API void srInitContext(SRContext* context);
 
+    R_API void srNewFrame(int frameWidth, int frameHeight);
+    R_API void srEndFrame();
+
     /**
      * @brief Clears framebuffer
      * 
@@ -117,6 +120,7 @@ namespace sr {
     R_API void srDeleteShader(int shader_type, unsigned int id);
 
     R_API void srUseShader(Shader shader);
+    R_API void srSetDefaultShaderUniforms(Shader shader); // Binds the shader in this call as well
 
 
     // Vertex Array
@@ -360,6 +364,7 @@ namespace sr {
         RenderBatch RenderBatch;
         Shader DefaultShader;
         std::vector<Mesh> AutoReleaseMeshes;
+        glm::mat4 CurrentProjection;
     };
 
 
