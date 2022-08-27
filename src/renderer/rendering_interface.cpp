@@ -950,6 +950,10 @@ namespace sr {
     {
       srAddPolyline(SRC->RenderBatch.Path);
     }
+
+    SRC->RenderBatch.Path.Styles.clear();
+    SRC->RenderBatch.Path.Points.clear();
+
   }
 
   R_API void srPathLineTo(const glm::vec2& position)
@@ -1022,26 +1026,19 @@ namespace sr {
       bottomRight.y = y + (dx + rect.Width)*sin + dy*cos;
     }
 
-    // Start with top left (right of arc) corner
-    cornerRadius = srClamp(cornerRadius, 0.0f, 1.0f);
-    const float min_size = (srMin(rect.Width, rect.Height) / 2.0f) * cornerRadius;
-    const glm::vec2 cornerSize = glm::vec2(min_size, min_size);
-    const glm::vec2 cornerSize_Rotated = rotation != 0.0f ? glm::vec2((cornerSize.x * cos) - (sin * cornerSize.y), (cornerSize.y * sin) + (cos * cornerSize.y)) : cornerSize;
-
 
     if (cornerRadius > 0.0f)
     {
-      // Find arccenterRadius
-      srPathLineTo(topLeft - glm::vec2(0.0f, cornerSize_Rotated.y));
-      srPathArc(topLeft + glm::vec2{cornerSize_Rotated.x, -cornerSize_Rotated.y}, -90.0f - rotation, -rotation, min_size);
-      srPathLineTo(topLeft + glm::vec2{cornerSize_Rotated.x, 0.0f});
-      //srPathLineTo(topRight - glm::vec2{cornerSize_Rotated.x, 0.0f});
-      srPathArc(topRight - cornerSize_Rotated, 0.0f - rotation, 90.0f - rotation, min_size);
-      srPathLineTo(bottomRight + glm::vec2{0.0f, cornerSize_Rotated.y});
-      srPathArc(bottomRight + glm::vec2{-cornerSize_Rotated.x, cornerSize_Rotated.y}, 90.0f - rotation, 180.0f - rotation, min_size);
-      srPathLineTo(bottomLeft + glm::vec2{cornerSize_Rotated.x, 0.0f});
-      srPathArc(bottomLeft + cornerSize_Rotated, 180.0f - rotation, 270.0f - rotation, min_size);
-      srPathLineTo(topLeft - glm::vec2{0.0f, cornerSize_Rotated.y});
+      // Start with top left (right of arc) corner
+      cornerRadius = srClamp(cornerRadius, 0.0f, 1.0f);
+      const float min_size = (srMin(rect.Width, rect.Height) / 2.0f) * cornerRadius;
+      const glm::vec2 arcCenterX = glm::vec2(min_size * cos, min_size * sin);
+      const glm::vec2 arcCenterY = glm::vec2(min_size * -sin, min_size * cos);
+
+      srPathArc(topLeft + arcCenterX - arcCenterY, -90.0f - rotation, -rotation, min_size);
+      srPathArc(topRight - arcCenterX - arcCenterY, 0.0f - rotation, 90.0f - rotation, min_size);
+      srPathArc(bottomRight -arcCenterX + arcCenterY, 90.0f - rotation, 180.0f - rotation, min_size);
+      srPathArc(bottomLeft + arcCenterX + arcCenterY, 180.0f - rotation, 270.0f - rotation, min_size);
     }
     else
     {

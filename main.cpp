@@ -47,6 +47,7 @@ int main()
     sr::Mesh mesh = sr::srLoadMesh(initData);
 
     float rectRotation = 0.0f;
+    float cornerRadius = 0.0f;
     glm::vec4 currentColor(1.0f, 1.0f, 1.0f, 1.0f);
 
     while (!glfwWindowShouldClose(window))
@@ -67,6 +68,7 @@ int main()
         // ImGui calls
         ImGui::Begin("Settings");
         ImGui::SliderFloat("Rect Rotation", &rectRotation, -360.0f, 360.0f);
+        ImGui::SliderFloat("Corner Radius", &cornerRadius, 0.0f, 1.0f);
         ImGui::ColorPicker4("CurrentColor", glm::value_ptr(currentColor));
         ImGui::End();   
 
@@ -75,19 +77,19 @@ int main()
         //sr::srDrawRectangle(sr::Rectangle{0.0f, 0.0f, 1.0f, 1.0f}, glm::vec2{0.5f, 0.5f}, rectRotation, sr::srGetColorFromFloat(currentColor.x, currentColor.y, currentColor.z, currentColor.w));
 
         //sr::srDrawCircle(glm::vec2(0.0f, 0.0f), 0.2f, sr::srGetColorFromFloat(currentColor));
-        sr::srPathSetStrokeEnabled(true);        
+        sr::srPathSetStrokeEnabled(false);        
         sr::srPathSetFillEnabled(false);
 
         sr::srPathSetStrokeColor(sr::srGetColorFromFloat(1.0f, 0.0f, 0.0f, 1.0f));
         sr::srPathSetFillColor(sr::srGetColorFromFloat(1.0f, 0.0f, 0.0f, 1.0f));
         sr::srPathRectangle({0.0f, 0.0f, 0.5f, 1.0f}, {0.25f, 0.25f}, 0.0f, 0.0f);
         
-        sr::srPathSetStrokeEnabled(false);
+        sr::srPathSetStrokeEnabled(true);
         sr::srPathSetFillEnabled(true);
         
-        sr::srPathSetStrokeColor(sr::srGetColorFromFloat(0.0f, 1.0f, 0.0f, 1.0f));
+        sr::srPathSetStrokeColor(sr::srGetColorFromFloat(1.0f, 0.0f, 0.0f, 1.0f));
         sr::srPathSetFillColor(sr::srGetColorFromFloat(0.0f, 1.0f, 0.0f, 1.0f));
-        sr::srPathRectangle({0.0f, 0.0f, 0.5f, 1.0f}, {0.25f, 0.25f}, 0.0f, 1.0f);
+        sr::srPathRectangle({0.0f, 0.0f, 0.5f, 1.0f}, {0.25f, 0.25f}, rectRotation, cornerRadius);
 
 
         sr::srDrawRenderBatch(&sr::SRC->RenderBatch);
