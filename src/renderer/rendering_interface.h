@@ -331,11 +331,10 @@ namespace sr {
         float Height;
     };
 
-    R_API void srBeginPath();
+    R_API void srBeginPath(PathType type);
     R_API void srEndPath();
     R_API void srPathLineTo(const glm::vec2& position);
     R_API void srPathArc(const glm::vec2& center, float startAngle, float endAngle, float radius, unsigned int segmentCount = 22);
-    R_API void srPathRectangle(const Rectangle& rect, const glm::vec2& origin, float rotation = 0.0f, float cornerRadius = 0.0f);
 
     R_API void srPathSetStrokeEnabled(bool showStroke);
     R_API void srPathSetFillEnabled(bool fill);
@@ -344,6 +343,7 @@ namespace sr {
     R_API void srPathSetStrokeColor(Color color);             
     R_API void srPathSetStrokeColor(const glm::vec4& color);             
     R_API void srPathSetStrokeWidth(float width);
+    R_API void srPathSetStyle(const PathStyle& style);
 
     R_API PathBuilder::PathStyleIndex& srPathBuilderNewStyle();
 
@@ -353,10 +353,27 @@ namespace sr {
 
 
     // More high level rendering methods
+    
 
-    R_API void srDrawRectangle(float x, float y, float width, float height, float rotation = 0.0f, float cornerRadius = 0.0f, Color color = 0xffffffff);
-    R_API void srDrawRectangle(const glm::vec2& position, const glm::vec2& size, float rotation = 0.0f, float cornerRadius = 0.0f, Color color = 0xffffffff);
-    R_API void srDrawRectangle(const Rectangle& rect, glm::vec2& origin, float rotation = 0.0f, float cornerRadius = 0.0f,  Color color = 0xffffffff);
+    R_API void srDrawRectanglePro(const Rectangle& rect, const glm::vec2& origin, float rotation, float cornerRadius, PathType pathType, PathStyle style);
+
+    inline void srDrawRectangle      (const glm::vec2& position, const glm::vec2& size, const glm::vec2& origin, float thickness = 3.0f, Color color = 0xffffffff)                                       { srDrawRectanglePro({position.x, position.y, size.x, size.y}, origin, 0.0f, 0.0f, PathType_Stroke, {thickness, color, 0xffffffff}); }
+    inline void srDrawRectangleR     (const glm::vec2& position, const glm::vec2& size, const glm::vec2& origin, float rotation, float thickness = 3.0f, Color color = 0xffffffff)                       { srDrawRectanglePro({position.x, position.y, size.x, size.y}, origin, rotation, 0.0f, PathType_Stroke, {thickness, color, 0xffffffff}); }
+    inline void srDrawRectangleC     (const glm::vec2& position, const glm::vec2& size, const glm::vec2& origin, float cornerRadius, float thickness = 3.0f, Color color = 0xffffffff)                   { srDrawRectanglePro({position.x, position.y, size.x, size.y}, origin, 0.0f, cornerRadius, PathType_Stroke, {thickness, color, 0xffffffff}); }
+    inline void srDrawRectangleRC    (const glm::vec2& position, const glm::vec2& size, const glm::vec2& origin, float rotation, float cornerRadius, float thickness = 3.0f, Color color = 0xffffffff)   { srDrawRectanglePro({position.x, position.y, size.x, size.y}, origin, rotation, cornerRadius, PathType_Stroke, {thickness, color, 0xffffffff}); }
+
+    inline void srDrawRectangleFilled    (const glm::vec2& position, const glm::vec2& size, const glm::vec2& origin, Color color = 0xffffffff)                                       { srDrawRectanglePro({position.x, position.y, size.x, size.y}, origin, 0.0f, 0.0f, PathType_Fill, {0.1f, 0xffffffff, color}); }
+    inline void srDrawRectangleFilledR   (const glm::vec2& position, const glm::vec2& size, const glm::vec2& origin, float rotation, Color color = 0xffffffff)                       { srDrawRectanglePro({position.x, position.y, size.x, size.y}, origin, rotation, 0.0f, PathType_Fill, {0.1f, 0xffffffff, color}); }
+    inline void srDrawRectangleFilledC   (const glm::vec2& position, const glm::vec2& size, const glm::vec2& origin, float cornerRadius, Color color = 0xffffffff)                   { srDrawRectanglePro({position.x, position.y, size.x, size.y}, origin, 0.0f, cornerRadius, PathType_Fill, {0.1f, 0xffffffff, color}); }
+    inline void srDrawRectangleFilledRC  (const glm::vec2& position, const glm::vec2& size, const glm::vec2& origin, float rotation, float cornerRadius, Color color = 0xffffffff)   { srDrawRectanglePro({position.x, position.y, size.x, size.y}, origin, rotation, cornerRadius, PathType_Fill, {0.1f, 0xffffffff, color}); }
+
+    inline void srDrawRectangleFilledOutline     (const glm::vec2& position, const glm::vec2& size, const glm::vec2& origin, Color color = 0xffffffff)                                       { srDrawRectanglePro({position.x, position.y, size.x, size.y}, origin, 0.0f, 0.0f, PathType_Fill | PathType_Stroke, {0.1f, 0xffffffff, color}); }
+    inline void srDrawRectangleFilledOutlineR    (const glm::vec2& position, const glm::vec2& size, const glm::vec2& origin, float rotation, Color color = 0xffffffff)                       { srDrawRectanglePro({position.x, position.y, size.x, size.y}, origin, rotation, 0.0f, PathType_Fill | PathType_Stroke, {0.1f, 0xffffffff, color}); }
+    inline void srDrawRectangleFilledOutlineC    (const glm::vec2& position, const glm::vec2& size, const glm::vec2& origin, float cornerRadius, Color color = 0xffffffff)                   { srDrawRectanglePro({position.x, position.y, size.x, size.y}, origin, 0.0f, cornerRadius, PathType_Fill | PathType_Stroke, {0.1f, 0xffffffff, color}); }
+    inline void srDrawRectangleFilledOutlineRC   (const glm::vec2& position, const glm::vec2& size, const glm::vec2& origin, float rotation, float cornerRadius, Color color = 0xffffffff)   { srDrawRectanglePro({position.x, position.y, size.x, size.y}, origin, rotation, cornerRadius, PathType_Fill | PathType_Stroke, {0.1f, 0xffffffff, color}); }
+
+
+
     R_API void srDrawCircle(const glm::vec2& center, float radius, Color color = 0xffffffff, unsigned int segmentCount = 36);
     R_API void srDrawArc(const glm::vec2& center, float startAngle, float endAngle, float radius, Color color = 0xffffffff, unsigned int segmentCount = 22);
 

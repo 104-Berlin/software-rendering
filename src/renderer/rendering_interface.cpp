@@ -872,28 +872,18 @@ namespace sr {
 
   R_API void srEnd()
   {
-    SRC->RenderBatch.CurrentDepth -= 0.0001f;
+    SRC->RenderBatch.CurrentDepth += 0.0001f;
   }
 
-  R_API void srDrawRectangle(float x, float y, float width, float height, float rotation, float cornerRadius, Color color)
-  {
-    srDrawRectangle(glm::vec2(x, y), glm::vec2(width, height), rotation, cornerRadius, color);
-  }
-
-
-  R_API void srDrawRectangle(const glm::vec2& position, const glm::vec2& size, float rotation, float cornerRadius, Color color)
-  {
-    srDrawRectangle({position.x, position.y, size.x, size.y}, glm::vec2(0.0f), rotation, cornerRadius, color);
-  }
-
-
-  R_API void srDrawRectangle(const Rectangle& rect, glm::vec2& origin, float rotation, float cornerRadius, Color color)
+  R_API void srDrawRectanglePro(const Rectangle& rect, const glm::vec2& origin, float rotation, float cornerRadius, PathType pathType, PathStyle style)
   {
     glm::vec2 topLeft;
     glm::vec2 topRight;
     glm::vec2 bottomLeft;
     glm::vec2 bottomRight;
-      // Draw rect with simple corners
+    // Draw rect with simple corners
+    float sin = rotation != 0 ? sinf(rotation*DEG2RAD) : /*sin(0) =*/0;
+    float cos = rotation != 0 ? cosf(rotation*DEG2RAD) : /*cos(0) =*/1;
 
     if (rotation == 0.0f)
     {
@@ -906,8 +896,6 @@ namespace sr {
     }
     else
     {
-      float sin = sinf(rotation*DEG2RAD);
-      float cos = cosf(rotation*DEG2RAD);
       float x = rect.X;
       float y = rect.Y;
       float dx = -origin.x;
@@ -926,21 +914,44 @@ namespace sr {
       bottomRight.y = y + (dx + rect.Width)*sin + dy*cos;
     }
 
-    if (cornerRadius >= 0.0f)
+    if (pathType & PathType_Stroke || cornerRadius >= 0.0f)
     {
-      
+      srBeginPath(pathType);
+      srPathSetStyle(style);
+      if (cornerRadius >= 0.0f)
+      {
+          // Start with top left (right of arc) corner
+          cornerRadius = srClamp(cornerRadius, 0.0f, 1.0f);
+          const float min_size = (srMin(rect.Width, rect.Height) / 2.0f) * cornerRadius;
+          const glm::vec2 arcCenterX = glm::vec2(min_size * cos, min_size * sin);
+          const glm::vec2 arcCenterY = glm::vec2(min_size * -sin, min_size * cos);
+
+          srPathArc(topLeft + arcCenterX - arcCenterY, -90.0f - rotation, -rotation, min_size);
+          srPathArc(topRight - arcCenterX - arcCenterY, 0.0f - rotation, 90.0f - rotation, min_size);
+          srPathArc(bottomRight -arcCenterX + arcCenterY, 90.0f - rotation, 180.0f - rotation, min_size);
+          srPathArc(bottomLeft + arcCenterX + arcCenterY, 180.0f - rotation, 270.0f - rotation, min_size);
+      }
+      else
+      {
+        srPathLineTo(topLeft);
+        srPathLineTo(topRight);
+        srPathLineTo(bottomRight);
+        srPathLineTo(bottomLeft);
+      }
+      srEndPath();
     }
+    else
+    {
+      srBegin(EBatchDrawMode::QUADS);
+      srColor1c(style.FillColor);
 
+      srVertex2f(topLeft);
+      srVertex2f(topRight);
+      srVertex2f(bottomRight);
+      srVertex2f(bottomLeft);
 
-    srBegin(EBatchDrawMode::QUADS);
-    srColor1c(color);
-
-    srVertex2f(topLeft);
-    srVertex2f(topRight);
-    srVertex2f(bottomRight);
-    srVertex2f(bottomLeft);
-
-    srEnd();
+      srEnd();
+    }
   }
 
   R_API void srDrawCircle(const glm::vec2& center, float radius, Color color, unsigned int segmentCount)
@@ -983,10 +994,11 @@ namespace sr {
 
   // Path builder
   
-  R_API void srBeginPath()
+  R_API void srBeginPath(PathType type)
   {
     SRC->RenderBatch.Path.Styles.clear();
     SRC->RenderBatch.Path.Points.clear();
+    SRC->RenderBatch.Path.RenderType = type;
   }
 
   R_API void srEndPath()
@@ -1034,8 +1046,8 @@ namespace sr {
   R_API void srPathRectangle(const Rectangle& rect, const glm::vec2& origin, float rotation, float cornerRadius)
   {
     // We want fresh path, so nothing connects to the previus
-    srEndPath();
-    srBeginPath();
+    /*srEndPath();
+    srBeginPath(PathType_Stroke);
 
     glm::vec2 topLeft;
     glm::vec2 topRight;
@@ -1099,7 +1111,7 @@ namespace sr {
       srPathLineTo(bottomLeft);
     }
 
-    srEndPath();
+    srEndPath();*/
   }
 
   R_API void srPathSetStrokeEnabled(bool showStroke)
@@ -1145,6 +1157,13 @@ namespace sr {
     PathBuilder::PathStyleIndex& styleIndex = srPathBuilderNewStyle();
     styleIndex.second.StrokeWidth = width;
     SRC->RenderBatch.Path.CurrentPathStyle.StrokeWidth = width;
+  }
+
+  R_API void srPathSetStyle(const PathStyle& style)
+  {
+    PathBuilder::PathStyleIndex& styleIndex = srPathBuilderNewStyle();
+    styleIndex.second = style;
+    SRC->RenderBatch.Path.CurrentPathStyle = style;
   }
 
   R_API PathBuilder::PathStyleIndex& srPathBuilderNewStyle()
@@ -1197,7 +1216,7 @@ namespace sr {
       nextStyleChange = pb.Styles[0].first;
     }
 
-    srBegin(LINES);
+    srBegin(QUADS);
     srColor1c(currentStyle.StrokeColor);
 
     for (size_t i1 = 0; i1 < count; i1++)
@@ -1211,13 +1230,13 @@ namespace sr {
 
       delta *= currentStyle.StrokeWidth * 0.5f;
 
-      /*srVertex2f(p1.x + delta.y, p1.y - delta.x);
+      srVertex2f(p1.x + delta.y, p1.y - delta.x);
       srVertex2f(p2.x + delta.y, p2.y - delta.x);
       srVertex2f(p2.x - delta.y, p2.y + delta.x);
-      srVertex2f(p1.x - delta.y, p1.y + delta.x);*/
+      srVertex2f(p1.x - delta.y, p1.y + delta.x);
 
-      srVertex2f(p1);
-      srVertex2f(p2);
+      //srVertex2f(p1);
+      //srVertex2f(p2);
 
       if (nextStyleChange <= i1)
       {
