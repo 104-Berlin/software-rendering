@@ -41,6 +41,16 @@ namespace sr {
 
     R_API void srViewport(float x, float y, float width, float height);
 
+
+    // Opengl PolygonMode (Wireframe or not)
+    enum PolygonFillMode_
+    {
+        PolygonFillMode_Line,
+        PolygonFillMode_Fill
+    };
+    // Opengl PolygonMode
+    R_API void srSetPolygonFillMode(PolygonFillMode_ mode);
+
     // Colors
     using Color = uint32_t;
 
@@ -332,7 +342,7 @@ namespace sr {
     };
 
     R_API void srBeginPath(PathType type);
-    R_API void srEndPath();
+    R_API void srEndPath(bool closedPath = false);
     R_API void srPathLineTo(const glm::vec2& position);
     R_API void srPathArc(const glm::vec2& center, float startAngle, float endAngle, float radius, unsigned int segmentCount = 22);
 
@@ -348,7 +358,7 @@ namespace sr {
     R_API PathBuilder::PathStyleIndex& srPathBuilderNewStyle();
 
     // Flushing path
-    R_API void srAddPolyline(const PathBuilder& pathBuilder);
+    R_API void srAddPolyline(const PathBuilder& pathBuilder, bool closedPath);
     R_API void srAddPolyFilled(const PathBuilder& pathBuilder);
 
 

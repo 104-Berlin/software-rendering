@@ -115,6 +115,8 @@ namespace sr {
   {
     SR_TRACE("OpenGL-Context: %s", glGetString(GL_VERSION));
     glCall(glEnable(GL_DEPTH_TEST));
+    glCall(glEnable(GL_BLEND));
+    glCall(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
   }
 
   R_API void srInitContext(SRContext* context)
@@ -157,6 +159,15 @@ namespace sr {
   R_API void srViewport(float x, float y, float width, float height)
   {
     glCall(glViewport(x, y, width, height));
+  }
+
+  R_API void srSetPolygonFillMode(PolygonFillMode_ mode)
+  {
+    switch (mode)
+    {
+      case PolygonFillMode_Fill: glCall(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)); break;
+      case PolygonFillMode_Line: glCall(glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)); break;
+    }
   }
 
   R_API Color srGetColorFromFloat(float r, float g, float b, float a)
@@ -872,7 +883,7 @@ namespace sr {
 
   R_API void srEnd()
   {
-    SRC->RenderBatch.CurrentDepth += 0.0001f;
+    SRC->RenderBatch.CurrentDepth -= 0.0001f;
   }
 
   R_API void srDrawRectanglePro(const Rectangle& rect, const glm::vec2& origin, float rotation, float cornerRadius, PathType pathType, PathStyle style)
@@ -893,7 +904,7 @@ namespace sr {
       topRight = glm::vec2(x + rect.Width, y + rect.Height);
       bottomLeft = glm::vec2(x, y);
       bottomRight = glm::vec2(x + rect.Width, y);
-    }
+    } 
     else
     {
       float x = rect.X;
@@ -918,7 +929,7 @@ namespace sr {
     {
       srBeginPath(pathType);
       srPathSetStyle(style);
-      if (cornerRadius >= 0.0f)
+      if (cornerRadius > 0.0f)
       {
           // Start with top left (right of arc) corner
           cornerRadius = srClamp(cornerRadius, 0.0f, 1.0f);
@@ -938,7 +949,7 @@ namespace sr {
         srPathLineTo(bottomRight);
         srPathLineTo(bottomLeft);
       }
-      srEndPath();
+      srEndPath(true);
     }
     else
     {
@@ -1001,7 +1012,7 @@ namespace sr {
     SRC->RenderBatch.Path.RenderType = type;
   }
 
-  R_API void srEndPath()
+  R_API void srEndPath(bool closedPath)
   {
     if (SRC->RenderBatch.Path.Points.size() == 0) return;
 
@@ -1011,12 +1022,21 @@ namespace sr {
     }
     if (SRC->RenderBatch.Path.RenderType & PathType_Stroke)
     {
-      srAddPolyline(SRC->RenderBatch.Path);
+      srAddPolyline(SRC->RenderBatch.Path, closedPath);
     }
 
     SRC->RenderBatch.Path.Styles.clear();
     SRC->RenderBatch.Path.Points.clear();
+  }
 
+  R_API void srPathClose()
+  {
+    if (SRC->RenderBatch.Path.Points.size() > 1)
+    {
+      SRC->RenderBatch.Path.Points.push_back(SRC->RenderBatch.Path.Points[0]);
+    }
+
+    srEndPath();
   }
 
   R_API void srPathLineTo(const glm::vec2& position)
@@ -1202,10 +1222,10 @@ namespace sr {
 
 
   // Flushing path
-  R_API void srAddPolyline(const PathBuilder& pb)
+  R_API void srAddPolyline(const PathBuilder& pb, bool closedPath)
   {
     const size_t count = pb.Points.size();
-    srCheckRenderBatchLimit(count + 4);
+    srCheckRenderBatchLimit(count * 4);
 
     PathStyle currentStyle = pb.CurrentPathStyle;
     unsigned int nextStyleChange = 0;
@@ -1216,27 +1236,89 @@ namespace sr {
       nextStyleChange = pb.Styles[0].first;
     }
 
-    srBegin(QUADS);
+    srBegin(TRIANGLES);
     srColor1c(currentStyle.StrokeColor);
 
-    for (size_t i1 = 0; i1 < count; i1++)
+    glm::vec2 lastTop {};
+    glm::vec2 lastBottom {};
+
+    for (size_t i1 = 0; i1 < count + (closedPath ? 1 : 0); i1++)
     {
-      const size_t i2 = (i1 + 1) % count;
-      const glm::vec2& p1 = pb.Points[i1];
-      const glm::vec2& p2 = pb.Points[i2];
+      const glm::vec2& currentPoint = pb.Points[i1 % count];
+      const glm::vec2& previousPoint = pb.Points[i1 == 0 ? (closedPath ? pb.Points.size() - 1 : 0) : (i1 - 1)];
+      const glm::vec2& nextPoint = pb.Points[(i1 + 1) % count];
+
+      const float prevLength = glm::length(currentPoint - previousPoint);
+      const float nextLength = glm::length(nextPoint - currentPoint);
+
+      const glm::vec2 dir1 = glm::normalize(currentPoint - previousPoint);
+      const glm::vec2 dir2 = glm::normalize(nextPoint - currentPoint);
+
+      // 90° dir vector
+      const glm::vec2 normalWidthVector1 = glm::normalize(glm::vec2(dir1.y, -dir1.x));
+      const glm::vec2 normalWidthVector2 = glm::normalize(glm::vec2(dir2.y, -dir2.x));
+
+      const glm::vec2 widthVector1 = normalWidthVector1 * currentStyle.StrokeWidth * 0.5f;
+      const glm::vec2 widthVector2 = normalWidthVector2 * currentStyle.StrokeWidth * 0.5f;
+
+
+
       
-      glm::vec2 delta = p2 - p1;
-      delta = glm::normalize(delta);
 
-      delta *= currentStyle.StrokeWidth * 0.5f;
+      glm::vec2 currentConnectedTop = currentPoint + widthVector1;
+      glm::vec2 currentConnectedBottom = currentPoint - widthVector1;
+      if (i1 < count - 1 || closedPath)
+      {
+        // Get calc points
+        const glm::vec2 cornerA = currentPoint + widthVector1;
+        const glm::vec2 cornerB = currentPoint + widthVector2;
 
-      srVertex2f(p1.x + delta.y, p1.y - delta.x);
-      srVertex2f(p2.x + delta.y, p2.y - delta.x);
-      srVertex2f(p2.x - delta.y, p2.y + delta.x);
-      srVertex2f(p1.x - delta.y, p1.y + delta.x);
+        // Check which point is pos and which negative
+        const glm::vec2 center = cornerA + ((cornerB - cornerA) / 2.0f);
 
-      //srVertex2f(p1);
-      //srVertex2f(p2);
+
+        const float connectionLength = glm::length(cornerB - cornerA);
+        const float diagonalLength = glm::length(currentPoint - center);
+
+        float a = ((connectionLength / 2.0f) / diagonalLength) * (currentStyle.StrokeWidth / 2.0f);
+        //SR_TRACE("SF=%f, f=%f, a=%f", connectionLength, diagonalLength, a);
+        float a_clamp = srMin(prevLength, nextLength);
+        a = srClamp(a, -a_clamp, a_clamp);
+
+        float dot = glm::dot(dir1, normalWidthVector2);
+        float funny = dot/srAbs(dot);
+        if (funny == 0)  funny = 1;
+        currentConnectedTop += (dir1 * a) * funny;
+        currentConnectedBottom -= (dir1 * a) * funny;
+      }
+      
+      if (i1 == 0)
+      {
+        lastTop = currentConnectedTop; // We use widthVector2 because prev and current is the same point
+        lastBottom = currentConnectedBottom; // We want the distance to the next point
+        continue;
+      }
+
+      // Find connection point for good filling
+
+
+
+
+      srVertex2f(lastBottom);
+      srVertex2f(currentConnectedBottom);
+      srVertex2f(currentConnectedTop);
+
+
+
+      srVertex2f(currentConnectedTop);
+      srVertex2f(lastTop);
+      srVertex2f(lastBottom);
+
+      //SR_TRACE("Rendering QUAD index %d\nLT(%f, %f)\nCT(%f, %f)\nCB(%f, %f)\nLB(%f, %f)", i1, lastTop.x, lastTop.y, currentConnectedTop.x, currentConnectedTop.y, currentConnectedBottom.x, currentConnectedBottom.y, lastBottom.x, lastBottom.y);
+
+
+      lastBottom = currentConnectedBottom;
+      lastTop = currentConnectedTop;
 
       if (nextStyleChange <= i1)
       {
@@ -1249,7 +1331,6 @@ namespace sr {
         }
       }
     }
-
     srEnd();
   }
 
