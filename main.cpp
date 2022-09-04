@@ -55,6 +55,19 @@ int main()
 
     sr::Mesh mesh = sr::srLoadMesh(initData);
 
+    // 4 * 4 big texture
+    uint32_t data[] =      {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
+                            0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
+                            0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
+                            0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff};
+
+    /*sr::Texture texture = sr::srLoadTexture(4, 4, sr::TextureFormat_RGBA8);
+    sr::srTextureSetData(texture, 4, 4, sr::TextureFormat_RGBA8, (unsigned char*)data);
+
+    sr::srTexturePrintData(texture, 4, 4, sr::TextureFormat_RGBA8);*/
+    sr::Texture texture = sr::srLoadTextureFromFile("G:\\repos\\software-rendering\\texture.png");
+    sr::Font font = sr::srLoadFont("G:\\repos\\software-rendering\\Roboto.ttf");
+
     float displayAngle = 0;
 
     bool drawLines = false;
@@ -112,6 +125,9 @@ int main()
 
         const glm::vec2& halfRectSize = rectSize / 2.0f;
 
+        sr::srDrawTexturePro(texture, {0.0f, 0.0f}, {halfRectSize.x, halfRectSize.y, rectSize.x, rectSize.y}, rectRotation);
+        
+        //sr::srDrawText(font, "Hello world", glm::vec2(0.0f, 0.0f));
 
         //sr::srDrawRectangle(sr::Rectangle{0.0f, 0.0f, 1.0f, 1.0f}, glm::vec2{0.5f, 0.5f}, rectRotation, sr::srGetColorFromFloat(currentColor.x, currentColor.y, currentColor.z, currentColor.w));
 
@@ -123,11 +139,12 @@ int main()
         //sr::srPathSetStrokeColor(currentLineColor);
         //sr::srPathSetFillColor(currentMeshColor);
         //sr::srPathRectangle({0.0f, 0.0f, rectSize.x, rectSize.y}, rectSize / 2.0f, 0.0f, 0.0f);
+
+
+        //sr::srDrawRectangleFilledRC({0.0f, 0.0f}, {rectSize.x, rectSize.y}, rectSize / 2.0f, rectRotation, cornerRadius, sr::srGetColorFromFloat(currentMeshColor));
+        //sr::srDrawRectangleRC({0.0f, 0.0f}, {rectSize.x, rectSize.y}, rectSize / 2.0f, rectRotation, cornerRadius, lineWidth, sr::srGetColorFromFloat(currentLineColor));
+
         
-
-
-        sr::srDrawRectangleRC({0.0f, 0.0f}, {rectSize.x, rectSize.y}, rectSize / 2.0f, rectRotation, cornerRadius, lineWidth, sr::srGetColorFromFloat(currentLineColor));
-        sr::srDrawRectangleFilledRC({0.0f, 0.0f}, {rectSize.x, rectSize.y}, rectSize / 2.0f, rectRotation, cornerRadius, sr::srGetColorFromFloat(currentMeshColor));
 
         /*sr::srBeginPath(sr::PathType_Stroke);
         sr::srPathSetStrokeWidth(lineWidth);

@@ -2,6 +2,12 @@
 #include "renderer.h"
 #include "glad/glad.h"
 
+
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image/stb_image.h"
+
+
 sr::SRContext* sr::SRC = nullptr;
 
 const char* basicMeshVertexShader = R"(
@@ -15,10 +21,12 @@ const char* basicMeshVertexShader = R"(
   uniform mat4 ProjectionMatrix = mat4(1.0);
 
   out vec4 Color;
+  out vec2 TexCoord;
 
   void main()
   {
     Color = vColor;
+    TexCoord = vTexCoord;
     gl_Position = ProjectionMatrix * vec4(vPosition, 1.0);
   }
 )";
@@ -29,10 +37,15 @@ const char* basicMeshFragmentShader = R"(
   layout(location = 0) out vec4 fragColor;
 
   in vec4 Color;
+  in vec2 TexCoord;
+
+  uniform sampler2D Texture;
 
   void main()
   {
-    fragColor = Color;
+    //fragColor = vec4(TexCoord, 0.0, 1.0);
+    fragColor = vec4(texture(Texture, TexCoord).xyz, 1.0);
+    //fragColor = Color;
   }
 )";
 
@@ -84,6 +97,25 @@ char const* gl_error_string(GLenum const err)
 
 
 namespace sr {
+
+  static RectangleCorners operator+(const RectangleCorners& corner, const glm::vec2& offset)
+  {
+    RectangleCorners result = corner;
+    result.TopLeft += offset;
+    result.BottomLeft += offset;
+    result.BottomRight += offset;
+    result.TopRight += offset;
+    return result;
+  }
+
+  static RectangleCorners& operator+=(RectangleCorners& corner, const glm::vec2& offset)
+  {
+    corner.TopLeft += offset;
+    corner.BottomLeft += offset;
+    corner.BottomRight += offset;
+    corner.TopRight += offset;
+    return corner;
+  }
 
   R_API void srLoad(SRLoadProc loadAddress)
   {
@@ -197,6 +229,34 @@ namespace sr {
     float a = (c & 0xff) >> 24;
     return {r, g, b, a};
   }
+
+  // MATH
+  R_API RectangleCorners srGetRotatedRectangle(const Rectangle& rect, float rotation)
+  {
+    RectangleCorners result;
+
+    float sin = rotation != 0 ? sinf(rotation * DEG2RAD) : 0;
+    float cos = rotation != 0 ? cosf(rotation * DEG2RAD) : 1;
+
+    float dx = -rect.OriginX;
+    float dy = -rect.OriginY;
+
+    result.TopLeft.x = dx*cos - (dy + rect.Height)*sin;
+    result.TopLeft.y = dx*sin + (dy + rect.Height)*cos;
+
+    result.TopRight.x = (dx + rect.Width)*cos - (dy + rect.Height)*sin;
+    result.TopRight.y = (dx + rect.Width)*sin + (dy + rect.Height)*cos;
+
+    result.BottomLeft.x = dx*cos - dy*sin;
+    result.BottomLeft.y = dx*sin + dy*cos;
+
+    result.BottomRight.x = (dx + rect.Width)*cos - dy*sin;
+    result.BottomRight.y = (dx + rect.Width)*sin + dy*cos;
+
+    return result;
+  }
+
+
 
 
   R_API Shader srLoadShader(const char* vertSrc, const char* fragSrc)
@@ -342,10 +402,132 @@ namespace sr {
     }
     else
     {
-      glUniformMatrix4fv(projectionMatrixId, 1, GL_FALSE, glm::value_ptr(SRC->CurrentProjection));
+      glCall(glUniformMatrix4fv(projectionMatrixId, 1, GL_FALSE, glm::value_ptr(SRC->CurrentProjection)));
+    }
+
+    unsigned int textureId = glGetUniformLocation(shader.ID, "Texture");
+    if (textureId == -1)
+    {
+      SR_TRACE("Could not find texture uniform location!");
+    }
+    else
+    {
+      glCall(glUniform1i(textureId, 0));
     }
   }
 
+  R_API unsigned int srTextureFormatToGL(TextureFormat_ format)
+  {
+    switch (format)
+    {
+    case TextureFormat_R8: return GL_RED;
+    case TextureFormat_RGB8: return GL_RGB;
+    case TextureFormat_RGBA8: return GL_RGBA;
+    }
+    return 0;
+  }
+
+
+  R_API Texture srLoadTexture(unsigned int width, unsigned int height, TextureFormat_ format)
+  {
+    Texture result;
+    result.ID = 0;
+    glCall(glGenTextures(1, &result.ID));
+    glCall(glBindTexture(GL_TEXTURE_2D, result.ID));
+
+    glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
+    glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
+    glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+    glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+
+    glCall(glBindTexture(GL_TEXTURE_2D, 0));
+
+    const size_t bytePerPixel = srTextureFormatSize(format);
+
+    const size_t size = width * height * bytePerPixel;
+
+    unsigned char* buffer = new unsigned char[size];
+    memset(buffer, 0, size);
+
+    srTextureSetData(result, width, height, format, buffer);
+    delete[] buffer;
+    return result;
+  }
+
+  R_API Texture srLoadTextureFromFile(const char* path)
+  {
+    int width = 0;
+    int height = 0;
+    int comp = 0;
+    unsigned char* data = stbi_load(path, &width, &height, &comp, 3);
+
+    if (data == NULL)
+    {
+      SR_TRACE("Cannot load texture\"%s\"", path);
+      return Texture{};
+    }
+    SR_TRACE("Loading texture \"%s\". W=%d H=%d C=%d", path, width, height, comp);
+
+    TextureFormat_ format = TextureFormat_RGBA8;
+    if (comp == 1) { format = TextureFormat_R8; }
+    else if (comp == 3) { format = TextureFormat_RGB8; }
+    Texture result = srLoadTexture(width, height, format);
+
+    srTextureSetData(result, width, height, format, data);
+
+    stbi_image_free(data);
+    return result;
+  }
+
+  R_API void srUnloadTexture(Texture* texture)
+  {
+    if (texture->ID != 0)
+    {
+      glCall(glDeleteTextures(1, &texture->ID));
+      texture->ID = 0;
+    }
+  }
+
+  R_API void srBindTexture(Texture texture)
+  {
+    glCall(glBindTexture(GL_TEXTURE_2D, texture.ID));
+  }
+
+  R_API void srTextureSetData(Texture texture, unsigned int width, unsigned int height, TextureFormat_ format, unsigned char* data)
+  {
+    srBindTexture(texture);
+    glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
+    glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
+    glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR));
+    glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+
+    glCall(glTexImage2D(GL_TEXTURE_2D, 0, srTextureFormatToGL(format), width, height, 0, srTextureFormatToGL(format), GL_UNSIGNED_BYTE, data));
+    glCall(glGenerateMipmap(GL_TEXTURE_2D));
+
+    srBindTexture({0});
+  }
+
+
+  R_API void srTexturePrintData(Texture texutre, const unsigned int width, const unsigned int height, TextureFormat_ format)
+  {
+    const size_t bytePerPixel = srTextureFormatSize(format);
+    const size_t size = width * height * bytePerPixel;
+
+    unsigned char* buffer = new unsigned char[size];
+    glGetTexImage(GL_TEXTURE_2D, 0, srTextureFormatToGL(format), GL_UNSIGNED_BYTE, buffer);
+    
+    printf("Texture data\n");
+    for (int y = 0; y < height; y++)
+    {
+      for (int x = 0; x < width; x++)
+      {
+        printf("0x%08x, ", buffer[(x + y * height) * bytePerPixel]);
+      }
+      printf("\n");
+    }
+
+    delete [] buffer;
+  }
 
 
   // Vertex Arrays
@@ -801,12 +983,15 @@ namespace sr {
     for (unsigned int i = 0, vertexOffset = 0; i <= batch->CurrentDraw; i++)
     {
       EBatchDrawMode mode = batch->DrawCalls[i].Mode;
+      glCall(glActiveTexture(GL_TEXTURE0));
+      srBindTexture(batch->DrawCalls[i].Texture);
       switch (mode)
       {
       case EBatchDrawMode::LINES:     glCall(glDrawArrays(GL_LINES, vertexOffset, batch->DrawCalls[i].VertexCount)); break;
       case EBatchDrawMode::TRIANGLES: glCall(glDrawArrays(GL_TRIANGLES, vertexOffset, batch->DrawCalls[i].VertexCount)); break;
       case EBatchDrawMode::QUADS:     glCall(glDrawElements(GL_TRIANGLES, batch->DrawCalls[i].VertexCount/4*6, GL_UNSIGNED_INT, (GLvoid*) (vertexOffset / 4 * 6 * sizeof(unsigned int)))); break;
       }
+      srBindTexture({});
       vertexOffset += batch->DrawCalls[i].VertexCount + batch->DrawCalls[i].VertexAlignment;
     }
 
@@ -834,6 +1019,7 @@ namespace sr {
       rb.DrawCalls[rb.CurrentDraw].Mode = mode;
       rb.DrawCalls[rb.CurrentDraw].VertexCount = 0;
       rb.DrawCalls[rb.CurrentDraw].VertexAlignment = 0;
+      rb.DrawCalls[rb.CurrentDraw].Texture = {0};
     }
   }
 
@@ -847,6 +1033,7 @@ namespace sr {
     srCheckRenderBatchLimit(1);
 
     SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter].Pos = vertex;
+    SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter].UV = SRC->RenderBatch.CurrentTexCoord;
     SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter].Normal = SRC->RenderBatch.CurrentNormal;
     SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter].Color = SRC->RenderBatch.CurrentColor;
 
@@ -881,49 +1068,38 @@ namespace sr {
     SRC->RenderBatch.CurrentColor = color;
   }
 
+  R_API void srTextureCoord2f(float u, float v)
+  {
+    SRC->RenderBatch.CurrentTexCoord = {u, v};
+  }
+
+  R_API void srTextureCoord2f(const glm::vec2& uv)
+  {
+    SRC->RenderBatch.CurrentTexCoord = uv;
+  }
+
+  R_API void srPushTexture(Texture tex)
+  {
+
+    Texture currentDrawTexture = SRC->RenderBatch.DrawCalls[SRC->RenderBatch.CurrentDraw].Texture;
+    if (currentDrawTexture.ID != 0 && currentDrawTexture.ID != tex.ID)
+    {
+      // We push a texture where we already have one
+      // We override the last pushed for now. This should not happen
+      // We warn here for now
+    }
+    SRC->RenderBatch.DrawCalls[SRC->RenderBatch.CurrentDraw].Texture = tex;
+  }
+
   R_API void srEnd()
   {
     SRC->RenderBatch.CurrentDepth -= 0.0001f;
   }
 
-  R_API void srDrawRectanglePro(const Rectangle& rect, const glm::vec2& origin, float rotation, float cornerRadius, PathType pathType, PathStyle style)
+  R_API void srDrawRectanglePro(const glm::vec2& position, const Rectangle& rect, float rotation, float cornerRadius, PathType pathType, PathStyle style)
   {
-    glm::vec2 topLeft;
-    glm::vec2 topRight;
-    glm::vec2 bottomLeft;
-    glm::vec2 bottomRight;
-    // Draw rect with simple corners
-    float sin = rotation != 0 ? sinf(rotation*DEG2RAD) : /*sin(0) =*/0;
-    float cos = rotation != 0 ? cosf(rotation*DEG2RAD) : /*cos(0) =*/1;
-
-    if (rotation == 0.0f)
-    {
-      float x = rect.X - origin.x;
-      float y = rect.Y - origin.y;
-      topLeft = glm::vec2(x, y + rect.Height);
-      topRight = glm::vec2(x + rect.Width, y + rect.Height);
-      bottomLeft = glm::vec2(x, y);
-      bottomRight = glm::vec2(x + rect.Width, y);
-    } 
-    else
-    {
-      float x = rect.X;
-      float y = rect.Y;
-      float dx = -origin.x;
-      float dy = -origin.y;
-
-      topLeft.x = x + dx*cos - (dy + rect.Height)*sin;
-      topLeft.y = y + dx*sin + (dy + rect.Height)*cos;
-
-      topRight.x = x + (dx + rect.Width)*cos - (dy + rect.Height)*sin;
-      topRight.y = y + (dx + rect.Width)*sin + (dy + rect.Height)*cos;
-
-      bottomLeft.x = x + dx*cos - dy*sin;
-      bottomLeft.y = y + dx*sin + dy*cos;
-
-      bottomRight.x = x + (dx + rect.Width)*cos - dy*sin;
-      bottomRight.y = y + (dx + rect.Width)*sin + dy*cos;
-    }
+    RectangleCorners corners = srGetRotatedRectangle(rect, rotation);
+    corners += position;
 
     if (pathType & PathType_Stroke || cornerRadius >= 0.0f)
     {
@@ -931,23 +1107,26 @@ namespace sr {
       srPathSetStyle(style);
       if (cornerRadius > 0.0f)
       {
+          float sin = rotation != 0 ? sinf(rotation * DEG2RAD) : 0;
+          float cos = rotation != 0 ? cosf(rotation * DEG2RAD) : 0;
+
           // Start with top left (right of arc) corner
           cornerRadius = srClamp(cornerRadius, 0.0f, 1.0f);
           const float min_size = (srMin(rect.Width, rect.Height) / 2.0f) * cornerRadius;
           const glm::vec2 arcCenterX = glm::vec2(min_size * cos, min_size * sin);
           const glm::vec2 arcCenterY = glm::vec2(min_size * -sin, min_size * cos);
 
-          srPathArc(topLeft + arcCenterX - arcCenterY, -90.0f - rotation, -rotation, min_size);
-          srPathArc(topRight - arcCenterX - arcCenterY, 0.0f - rotation, 90.0f - rotation, min_size);
-          srPathArc(bottomRight -arcCenterX + arcCenterY, 90.0f - rotation, 180.0f - rotation, min_size);
-          srPathArc(bottomLeft + arcCenterX + arcCenterY, 180.0f - rotation, 270.0f - rotation, min_size);
+          srPathArc(corners.TopLeft + arcCenterX - arcCenterY, -90.0f - rotation, -rotation, min_size);
+          srPathArc(corners.TopRight - arcCenterX - arcCenterY, 0.0f - rotation, 90.0f - rotation, min_size);
+          srPathArc(corners.BottomRight -arcCenterX + arcCenterY, 90.0f - rotation, 180.0f - rotation, min_size);
+          srPathArc(corners.BottomLeft + arcCenterX + arcCenterY, 180.0f - rotation, 270.0f - rotation, min_size);
       }
       else
       {
-        srPathLineTo(topLeft);
-        srPathLineTo(topRight);
-        srPathLineTo(bottomRight);
-        srPathLineTo(bottomLeft);
+        srPathLineTo(corners.TopLeft);
+        srPathLineTo(corners.TopRight);
+        srPathLineTo(corners.BottomRight);
+        srPathLineTo(corners.BottomLeft);
       }
       srEndPath(true);
     }
@@ -956,14 +1135,133 @@ namespace sr {
       srBegin(EBatchDrawMode::QUADS);
       srColor1c(style.FillColor);
 
-      srVertex2f(topLeft);
-      srVertex2f(topRight);
-      srVertex2f(bottomRight);
-      srVertex2f(bottomLeft);
+      srVertex2f(corners.TopLeft);
+      srVertex2f(corners.TopRight);
+      srVertex2f(corners.BottomRight);
+      srVertex2f(corners.BottomLeft);
 
       srEnd();
     }
   }
+
+  R_API void srDrawTexturePro(Texture texture, const glm::vec2& position, const Rectangle& rect, float rotation)
+  {
+    RectangleCorners corners = srGetRotatedRectangle(rect, rotation) + position;
+
+    sr::srBegin(EBatchDrawMode::QUADS);
+    srPushTexture(texture);
+
+    srTextureCoord2f(0.0f, 0.0f);
+    srVertex2f(corners.TopLeft);
+
+    srTextureCoord2f(1.0f, 0.0f);
+    srVertex2f(corners.TopRight);
+
+    srTextureCoord2f(1.0f, 1.0f);
+    srVertex2f(corners.BottomRight);
+
+    srTextureCoord2f(0.0f, 1.0f);
+    srVertex2f(corners.BottomLeft);
+    sr::srEnd();
+  }
+
+
+  R_API Font srLoadFont(const char* filePath, float size)
+  {
+    Font result{};
+    result.Size = size;
+
+    result.Atlas = ftgl::texture_atlas_new(1024, 1024, 4);
+    result.Font = ftgl::texture_font_new_from_file(result.Atlas, size, filePath);
+
+    if (!result.Font)
+    {
+      SR_TRACE("Failed to load font \"%s\"!", filePath);
+      srUnloadFont(&result);
+      return result;
+    }
+
+
+    // Load first 128 chars
+    static const char* text = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    for (unsigned char c = 0; c < strlen(text); c++)
+    {
+      texture_font_get_glyph(result.Font, text + c);
+    }
+    
+
+    return result;
+  }
+
+  R_API void srUnloadFont(Font* font)
+  {
+    if (font->Atlas)
+    {
+      texture_atlas_delete(font->Atlas);
+      font->Atlas = NULL;
+    }
+    if (font->Font)
+    {
+      texture_font_delete(font->Font);
+      font->Font = NULL;
+    }
+  }
+
+
+  R_API void srDrawText(Font font, const char* text, const glm::vec2& position)
+  {
+    const size_t textLen = strlen(text);
+
+    srBegin(EBatchDrawMode::QUADS);
+    srPushTexture({font.Atlas->id});
+
+    glm::vec2 pos = position;
+    for (size_t i = 0; i < textLen; i++)
+    {
+      char c = text[i];
+      if (c == '\n')
+      {
+        pos.x = position.x;
+        pos.y = pos.y - font.Size;
+        continue;
+      }
+      texture_glyph_t* glyph = texture_font_get_glyph(font.Font, text + i);
+      if (glyph)
+      {
+        if (i > 0)
+        {
+          float kerning = texture_glyph_get_kerning(glyph, text + i - 1);
+          pos.x += kerning;
+        }
+
+        float x0 = pos.x + glyph->offset_x;
+        float y0 = pos.y - glyph->offset_y;
+        float x1 = x0 + glyph->width;
+        float y1 = y0 + glyph->height;
+
+        float u0 = glyph->s0;
+        float v0 = glyph->t0;
+        float u1 = glyph->s1;
+        float v1 = glyph->t1;
+
+        srTextureCoord2f(u0, v1);
+        srVertex2f(x0, y1);
+
+        srTextureCoord2f(u0, v0);
+        srVertex2f(x0, y0);
+
+        srTextureCoord2f(u1, v0);
+        srVertex2f(x1, y0);
+
+        srTextureCoord2f(u1, v1);
+        srVertex2f(x1, y1);
+
+        pos.x += glyph->advance_x;
+      }
+    }
+    srEnd();
+  }
+
 
   R_API void srDrawCircle(const glm::vec2& center, float radius, Color color, unsigned int segmentCount)
   {

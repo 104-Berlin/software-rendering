@@ -7,3 +7,9 @@
 [submodule "deps/imgui"]
 	path = deps/imgui
 	url = https://github.com/ocornut/imgui.git
+[submodule "src/renderer/freetype"]
+	path = src/renderer/freetype
+	url = https://github.com/freetype/freetype.git
+[submodule "src/renderer/freetype-gl"]
+	path = src/renderer/freetype-gl
+	url = https://github.com/rougier/freetype-gl.git
