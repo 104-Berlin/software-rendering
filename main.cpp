@@ -24,6 +24,7 @@ int main()
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // Required on Mac
+    glfwWindowHint(GLFW_SAMPLES, 8);
 
     GLFWwindow* window = glfwCreateWindow(800, 800, "Rendering", NULL, NULL);
 
@@ -66,7 +67,7 @@ int main()
 
     sr::srTexturePrintData(texture, 4, 4, sr::TextureFormat_RGBA8);*/
     sr::Texture texture = sr::srLoadTextureFromFile("G:\\repos\\software-rendering\\texture.png");
-    sr::Font font = sr::srLoadFont("G:\\repos\\software-rendering\\Roboto.ttf");
+    sr::Font font = sr::srLoadFont("G:\\repos\\software-rendering\\Pacifico-Regular.ttf", 96);
 
     float displayAngle = 0;
 
@@ -119,15 +120,22 @@ int main()
         ImGui::Render();
 
 
-
         // SR Rendering
         sr::srNewFrame(width, height);
 
         const glm::vec2& halfRectSize = rectSize / 2.0f;
 
-        sr::srDrawTexturePro(texture, {0.0f, 0.0f}, {halfRectSize.x, halfRectSize.y, rectSize.x, rectSize.y}, rectRotation);
-        
-        //sr::srDrawText(font, "Hello world", glm::vec2(0.0f, 0.0f));
+       
+        /*sr::srBegin(sr::EBatchDrawMode::LINES);
+        sr::srVertex2f(0.0f, 0.0f);
+        sr::srVertex2f(200.0f, 200.0f);
+        sr::srEnd();*/
+
+        sr::srDrawGrid({0.0f, 0.0f}, 10, 10, 100, 100);
+        //sr::srDrawText(font, "0, 0", {0.0f, 0.0f});
+
+
+        sr::srDrawText(font, "Wer das liest ist doof\nasdgfHüöo", glm::vec2(0.0f, 0.0f), sr::srGetColorFromFloat(currentLineColor), drawLines);
 
         //sr::srDrawRectangle(sr::Rectangle{0.0f, 0.0f, 1.0f, 1.0f}, glm::vec2{0.5f, 0.5f}, rectRotation, sr::srGetColorFromFloat(currentColor.x, currentColor.y, currentColor.z, currentColor.w));
 

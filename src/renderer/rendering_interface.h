@@ -158,6 +158,12 @@ namespace sr {
     R_API void srDeleteShader(int shader_type, unsigned int id);
 
     R_API void srUseShader(Shader shader);
+    R_API unsigned int srShaderGetUniformLocation(const char* name, Shader shader);
+    R_API void srShaderSetUniform1b(Shader shader, const char* name, bool value);
+    R_API void srShaderSetUniform1i(Shader shader, const char* name, int value);
+    R_API void srShaderSetUniform2f(Shader shader, const char* name, const glm::vec2& value);
+    R_API void srShaderSetUniform3f(Shader shader, const char* name, const glm::vec3& value);
+    R_API void srShaderSetUniformMat4(Shader shader, const char* name, const glm::mat4& value);
     R_API void srSetDefaultShaderUniforms(Shader shader); // Binds the shader in this call as well
 
 
@@ -395,6 +401,8 @@ namespace sr {
     R_API void srVertex2f(float x, float y);
     R_API void srVertex2f(const glm::vec2& vertex);
     R_API void srColor1c(Color color);
+    R_API void srColor3f(float r, float g, float b);
+    R_API void srColor3f(const glm::vec3& color);
     R_API void srColor4f(float r, float g, float b, float a);
     R_API void srColor4f(const glm::vec4& color);
     R_API void srTextureCoord2f(float u, float v);
@@ -450,7 +458,8 @@ namespace sr {
     inline void srDrawRectangleFilledOutlineRC   (const glm::vec2& position, const glm::vec2& size, const glm::vec2& origin, float rotation, float cornerRadius, Color color = 0xffffffff)   { srDrawRectanglePro(position, {origin.x, origin.y, size.x, size.y}, rotation, cornerRadius, PathType_Fill | PathType_Stroke, {0.1f, 0xffffffff, color}); }
 
     R_API void srDrawTexturePro(Texture texture, const glm::vec2& position, const Rectangle& rect, float rotation);
-
+    
+    R_API void srDrawGrid(const glm::vec2& position, unsigned int columns, unsigned int rows, float cellSizeX, float cellSizeY);
 
 
     // Fonts
@@ -465,7 +474,7 @@ namespace sr {
     R_API Font srLoadFont(const char* filePath, float size = 24.0f);
     R_API void srUnloadFont(Font* font);
 
-    R_API void srDrawText(Font font, const char* text, const glm::vec2& position);
+    R_API void srDrawText(Font font, const char* text, const glm::vec2& position, Color color = 0xff000000, bool fillRects = false);
 
 
 

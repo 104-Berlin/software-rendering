@@ -40,15 +40,24 @@ const char* basicMeshFragmentShader = R"(
   in vec2 TexCoord;
 
   uniform sampler2D Texture;
+  uniform bool      UseTexture = false;
 
   void main()
   {
     //fragColor = vec4(TexCoord, 0.0, 1.0);
-    fragColor = vec4(texture(Texture, TexCoord).xyz, 1.0);
-    //fragColor = Color;
+    if (UseTexture)
+    {
+      fragColor = texture(Texture, TexCoord) * Color;
+    }
+    else
+    {
+      fragColor = Color;
+    }
   }
 )";
 
+static const unsigned int FONT_TEXTURE_SIZE = 1024;
+static const unsigned int FONT_TEXTURE_DEPTH = 1;
 
 
 char const* gl_error_string(GLenum const err) 
@@ -149,6 +158,7 @@ namespace sr {
     glCall(glEnable(GL_DEPTH_TEST));
     glCall(glEnable(GL_BLEND));
     glCall(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+    glCall(glEnable(GL_MULTISAMPLE));
   }
 
   R_API void srInitContext(SRContext* context)
@@ -391,29 +401,69 @@ namespace sr {
     glCall(glUseProgram(shader.ID));
   }
 
+  R_API unsigned int srShaderGetUniformLocation(const char* name, Shader shader)
+  {
+    unsigned int result = glCall(glGetUniformLocation(shader.ID, name));
+    if (result == -1)
+    {
+      SR_TRACE("Could not find uniform location %s [ID %i]", name, shader.ID);
+    }
+    return result;
+  }
+
+  R_API void srShaderSetUniform1b(Shader shader, const char* name, bool value)
+  {
+    unsigned int location = srShaderGetUniformLocation(name, shader);
+    if (location != -1)
+    {
+      glCall(glUniform1i(location, value));
+    }
+  }
+
+  R_API void srShaderSetUniform1i(Shader shader, const char* name, int value)
+  {
+    unsigned int location = srShaderGetUniformLocation(name, shader);
+    if (location != -1)
+    {
+      glCall(glUniform1i(location, value));
+    }
+  }
+
+  R_API void srShaderSetUniform2f(Shader shader, const char* name, const glm::vec2& value)
+  {
+    unsigned int location = srShaderGetUniformLocation(name, shader);
+    if (location != -1)
+    {
+      glCall(glUniform2f(location, value.x, value.y));
+    }
+  }
+
+  R_API void srShaderSetUniform3f(Shader shader, const char* name, const glm::vec3& value)
+  {
+    unsigned int location = srShaderGetUniformLocation(name, shader);
+    if (location != -1)
+    {
+      glCall(glUniform3f(location, value.x, value.y, value.z));
+    }
+  }
+
+  R_API void srShaderSetUniformMat4(Shader shader, const char* name, const glm::mat4& value)
+  {
+    unsigned int location = srShaderGetUniformLocation(name, shader);
+    if (location != -1)
+    {
+      glCall(glUniformMatrix4fv(location, 1, GL_FALSE, glm::value_ptr(value)));
+    }
+  }
+
+
   R_API void srSetDefaultShaderUniforms(Shader shader)
   {
     srUseShader(shader);
 
-    unsigned int projectionMatrixId = glGetUniformLocation(shader.ID, "ProjectionMatrix");
-    if (projectionMatrixId == -1)
-    {
-      SR_TRACE("Could not find projection matrix uniform location!");
-    }
-    else
-    {
-      glCall(glUniformMatrix4fv(projectionMatrixId, 1, GL_FALSE, glm::value_ptr(SRC->CurrentProjection)));
-    }
-
-    unsigned int textureId = glGetUniformLocation(shader.ID, "Texture");
-    if (textureId == -1)
-    {
-      SR_TRACE("Could not find texture uniform location!");
-    }
-    else
-    {
-      glCall(glUniform1i(textureId, 0));
-    }
+    srShaderSetUniformMat4(shader, "ProjectionMatrix", SRC->CurrentProjection);
+    srShaderSetUniform1i(shader, "Texture", 0);
+    //srShaderSetUniform1b(shader, "UseTexture", false);
   }
 
   R_API unsigned int srTextureFormatToGL(TextureFormat_ format)
@@ -500,6 +550,9 @@ namespace sr {
     glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
     glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR));
     glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+
+    GLint swizzleMask[] = {GL_RED, GL_RED, GL_RED, GL_RED};
+    glCall(glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask));
 
     glCall(glTexImage2D(GL_TEXTURE_2D, 0, srTextureFormatToGL(format), width, height, 0, srTextureFormatToGL(format), GL_UNSIGNED_BYTE, data));
     glCall(glGenerateMipmap(GL_TEXTURE_2D));
@@ -983,8 +1036,12 @@ namespace sr {
     for (unsigned int i = 0, vertexOffset = 0; i <= batch->CurrentDraw; i++)
     {
       EBatchDrawMode mode = batch->DrawCalls[i].Mode;
+      
+      srShaderSetUniform1b(SRC->DefaultShader, "UseTexture", batch->DrawCalls[i].Texture.ID > 0);
+
       glCall(glActiveTexture(GL_TEXTURE0));
       srBindTexture(batch->DrawCalls[i].Texture);
+      
       switch (mode)
       {
       case EBatchDrawMode::LINES:     glCall(glDrawArrays(GL_LINES, vertexOffset, batch->DrawCalls[i].VertexCount)); break;
@@ -1020,6 +1077,10 @@ namespace sr {
       rb.DrawCalls[rb.CurrentDraw].VertexCount = 0;
       rb.DrawCalls[rb.CurrentDraw].VertexAlignment = 0;
       rb.DrawCalls[rb.CurrentDraw].Texture = {0};
+
+      rb.CurrentColor = 0xffffffff;
+      rb.CurrentNormal = glm::vec3(0.0f, 0.0f, -1.0f);
+      rb.CurrentTexCoord = glm::vec2(0.0f);
     }
   }
 
@@ -1052,6 +1113,15 @@ namespace sr {
     srVertex3f(glm::vec3(vertex.x, vertex.y, SRC->RenderBatch.CurrentDepth));
   }
 
+  R_API void srColor3f(float r, float g, float b)
+  {
+    srColor4f(r, g, b, 1.0f);
+  }
+
+  R_API void srColor3f(const glm::vec3& color)
+  {
+    srColor4f({color.x, color.y, color.z, 1.0f});
+  }
 
   R_API void srColor4f(float r, float g, float b, float a)
   {
@@ -1165,13 +1235,29 @@ namespace sr {
     sr::srEnd();
   }
 
+  R_API void srDrawGrid(const glm::vec2& position, unsigned int columns, unsigned int rows, float cellSizeX, float cellSizeY)
+  {
+    srBegin(EBatchDrawMode::LINES);
+    for (unsigned int y = 0; y < rows; y++)
+    {
+      srVertex2f(position + glm::vec2{0.0f, y * cellSizeY});
+      srVertex2f(position + glm::vec2{columns * cellSizeX, y * cellSizeY});
+    }
+    for (unsigned int x = 0; x < columns; x++)
+    {
+      srVertex2f(position + glm::vec2{x * cellSizeX, 0.0f});
+      srVertex2f(position + glm::vec2{x * cellSizeX, rows * cellSizeY});
+    }
+    srEnd();
+  }
+
 
   R_API Font srLoadFont(const char* filePath, float size)
   {
     Font result{};
     result.Size = size;
 
-    result.Atlas = ftgl::texture_atlas_new(1024, 1024, 4);
+    result.Atlas = ftgl::texture_atlas_new(FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, FONT_TEXTURE_DEPTH);
     result.Font = ftgl::texture_font_new_from_file(result.Atlas, size, filePath);
 
     if (!result.Font)
@@ -1184,11 +1270,14 @@ namespace sr {
 
     // Load first 128 chars
     static const char* text = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    for (unsigned char c = 0; c < strlen(text); c++)
+    for (char c = 0; c < strlen(text); c++)
     {
       texture_font_get_glyph(result.Font, text + c);
     }
     
+    Texture fontTexture = srLoadTexture(FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, TextureFormat_R8);
+    srTextureSetData(fontTexture, FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, TextureFormat_R8, result.Atlas->data);
+    result.Atlas->id = fontTexture.ID;
 
     return result;
   }
@@ -1207,13 +1296,39 @@ namespace sr {
     }
   }
 
+  /**
+   * @brief Finds texture glyph and loads it if not found in the atlas
+   * 
+   * @return texture_glyph_t* 
+   */
+  static texture_glyph_t* srFontGetGlyph(texture_font_t* font, const char* codepoint)
+  {
+    texture_glyph_t* result = texture_font_find_glyph(font, codepoint);
+    if (!result)
+    {
+      if (texture_font_load_glyph(font, codepoint) == 1)
+      {
+        result = texture_font_find_glyph(font, codepoint);
+        Texture tex;
+        tex.ID = font->atlas->id;
+        srTextureSetData(tex, 1024, 1024, FONT_TEXTURE_DEPTH == 1 ? TextureFormat_R8 : TextureFormat_RGB8, font->atlas->data);
+      }
+    }
+    return result;
+  }
 
-  R_API void srDrawText(Font font, const char* text, const glm::vec2& position)
+  R_API void srDrawText(Font font, const char* text, const glm::vec2& position, Color color, bool fillRects)
   {
     const size_t textLen = strlen(text);
 
     srBegin(EBatchDrawMode::QUADS);
-    srPushTexture({font.Atlas->id});
+    srColor1c(color);
+    if (!fillRects)
+    {
+      srPushTexture({font.Atlas->id});
+    }
+
+    float currentDepth = SRC->RenderBatch.CurrentDepth;
 
     glm::vec2 pos = position;
     for (size_t i = 0; i < textLen; i++)
@@ -1225,7 +1340,7 @@ namespace sr {
         pos.y = pos.y - font.Size;
         continue;
       }
-      texture_glyph_t* glyph = texture_font_get_glyph(font.Font, text + i);
+      texture_glyph_t* glyph = srFontGetGlyph(font.Font, text + i);
       if (glyph)
       {
         if (i > 0)
@@ -1235,9 +1350,9 @@ namespace sr {
         }
 
         float x0 = pos.x + glyph->offset_x;
-        float y0 = pos.y - glyph->offset_y;
+        float y0 = pos.y + glyph->offset_y;
         float x1 = x0 + glyph->width;
-        float y1 = y0 + glyph->height;
+        float y1 = y0 - glyph->height;
 
         float u0 = glyph->s0;
         float v0 = glyph->t0;
@@ -1245,18 +1360,19 @@ namespace sr {
         float v1 = glyph->t1;
 
         srTextureCoord2f(u0, v1);
-        srVertex2f(x0, y1);
+        srVertex3f(x0, y1, currentDepth);
 
         srTextureCoord2f(u0, v0);
-        srVertex2f(x0, y0);
+        srVertex3f(x0, y0, currentDepth);
 
         srTextureCoord2f(u1, v0);
-        srVertex2f(x1, y0);
+        srVertex3f(x1, y0, currentDepth);
 
         srTextureCoord2f(u1, v1);
-        srVertex2f(x1, y1);
+        srVertex3f(x1, y1, currentDepth);
 
         pos.x += glyph->advance_x;
+        currentDepth -= 0.00001f;
       }
     }
     srEnd();
