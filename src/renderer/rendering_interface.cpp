@@ -1044,6 +1044,7 @@ namespace sr {
       
       switch (mode)
       {
+      case EBatchDrawMode::POINTS:    glCall(glDrawArrays(GL_POINTS, vertexOffset, batch->DrawCalls[i].VertexCount)); break;
       case EBatchDrawMode::LINES:     glCall(glDrawArrays(GL_LINES, vertexOffset, batch->DrawCalls[i].VertexCount)); break;
       case EBatchDrawMode::TRIANGLES: glCall(glDrawArrays(GL_TRIANGLES, vertexOffset, batch->DrawCalls[i].VertexCount)); break;
       case EBatchDrawMode::QUADS:     glCall(glDrawElements(GL_TRIANGLES, batch->DrawCalls[i].VertexCount/4*6, GL_UNSIGNED_INT, (GLvoid*) (vertexOffset / 4 * 6 * sizeof(unsigned int)))); break;
@@ -1064,7 +1065,7 @@ namespace sr {
     RenderBatch& rb = SRC->RenderBatch;
     if (rb.DrawCalls[rb.CurrentDraw].Mode != mode)
     {
-      if (rb.DrawCalls[rb.CurrentDraw].Mode == EBatchDrawMode::LINES) 
+      if (rb.DrawCalls[rb.CurrentDraw].Mode == EBatchDrawMode::LINES || rb.DrawCalls[rb.CurrentDraw].Mode == EBatchDrawMode::POINTS) 
         rb.DrawCalls[rb.CurrentDraw].VertexAlignment = rb.DrawCalls[rb.CurrentDraw].VertexCount % 4;
       else if (rb.DrawCalls[rb.CurrentDraw].Mode == EBatchDrawMode::TRIANGLES)
         rb.DrawCalls[rb.CurrentDraw].VertexAlignment = 4 - (rb.DrawCalls[rb.CurrentDraw].VertexCount % 4);
@@ -1178,7 +1179,7 @@ namespace sr {
       if (cornerRadius > 0.0f)
       {
           float sin = rotation != 0 ? sinf(rotation * DEG2RAD) : 0;
-          float cos = rotation != 0 ? cosf(rotation * DEG2RAD) : 0;
+          float cos = rotation != 0 ? cosf(rotation * DEG2RAD) : 1;
 
           // Start with top left (right of arc) corner
           cornerRadius = srClamp(cornerRadius, 0.0f, 1.0f);
@@ -1430,6 +1431,11 @@ namespace sr {
   {
     if (SRC->RenderBatch.Path.Points.size() == 0) return;
 
+    /*if (closedPath && glm::length(SRC->RenderBatch.Path.Points.back() - SRC->RenderBatch.Path.Points[0]) < 0.1f)
+    {
+      SRC->RenderBatch.Path.Points.pop_back();
+    }*/
+
     if (SRC->RenderBatch.Path.RenderType & PathType_Fill)
     {
       srAddPolyFilled(SRC->RenderBatch.Path);
@@ -1455,14 +1461,17 @@ namespace sr {
 
   R_API void srPathLineTo(const glm::vec2& position)
   {
+    if (SRC->RenderBatch.Path.Points.size() == 0 || glm::length(SRC->RenderBatch.Path.Points.back() - position) > 0.1f)
+    {
+    }
     SRC->RenderBatch.Path.Points.push_back(position);
   }
 
   R_API void srPathArc(const glm::vec2& center, float startAngle, float endAngle, float radius, unsigned int segmentCount)
   {
-        // Use angle in radiens. Comes in as deg
-    startAngle = startAngle * DEG2RAD;
-    endAngle = endAngle * DEG2RAD;
+    // Use angle in radiens. Comes in as deg
+    startAngle = (startAngle * DEG2RAD);
+    endAngle = (endAngle * DEG2RAD);
 
     const float angle = endAngle - startAngle;
     const float degIncrease = angle / segmentCount;
@@ -1472,7 +1481,7 @@ namespace sr {
     {
       glm::vec2 currentPosition(radius * sinf(currentAngle), radius * cosf(currentAngle));
       
-      SRC->RenderBatch.Path.Points.push_back(center + currentPosition);
+      srPathLineTo(center + currentPosition);
       currentAngle += degIncrease;
     }
   }
@@ -1681,7 +1690,14 @@ namespace sr {
 
       glm::vec2 currentConnectedTop = currentPoint + widthVector1;
       glm::vec2 currentConnectedBottom = currentPoint - widthVector1;
-      if (i1 < count - 1 || closedPath)
+
+      if (!closedPath && i1 == 0)
+      {
+        currentConnectedTop = currentPoint + widthVector2;
+        currentConnectedBottom = currentPoint - widthVector2;
+      }
+
+      if ((i1 < count - 1 && i1 > 0) || closedPath)
       {
         // Get calc points
         const glm::vec2 cornerA = currentPoint + widthVector1;
@@ -1746,6 +1762,11 @@ namespace sr {
       }
     }
     srEnd();
+
+    for (const glm::vec2& p : pb.Points)
+    {
+      srDrawCircle(p, 10.0f, 0xff000000, 18);
+    }
   }
 
   R_API void srAddPolyFilled(const PathBuilder& pb)

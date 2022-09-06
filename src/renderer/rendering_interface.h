@@ -307,7 +307,8 @@ namespace sr {
         UNKNOWN = 0,
         TRIANGLES = 1,
         QUADS,
-        LINES
+        LINES,
+        POINTS
     };
 
     typedef uint32_t PathType;
