@@ -133,7 +133,7 @@ int main()
 
     sr::srTexturePrintData(texture, 4, 4, sr::TextureFormat_RGBA8);*/
     sr::Texture texture = sr::srLoadTextureFromFile("G:\\repos\\software-rendering\\texture.png");
-    sr::Font font = sr::srLoadFont("G:\\repos\\software-rendering\\Pacifico-Regular.ttf", 96);
+    sr::Font font = sr::srLoadFont("G:\\repos\\software-rendering\\Roboto.ttf", 96);
 
     float displayAngle = 0;
 

@@ -570,9 +570,9 @@ namespace sr {
     glGetTexImage(GL_TEXTURE_2D, 0, srTextureFormatToGL(format), GL_UNSIGNED_BYTE, buffer);
     
     printf("Texture data\n");
-    for (int y = 0; y < height; y++)
+    for (unsigned int y = 0; y < height; y++)
     {
-      for (int x = 0; x < width; x++)
+      for (unsigned int x = 0; x < width; x++)
       {
         printf("0x%08x, ", buffer[(x + y * height) * bytePerPixel]);
       }
