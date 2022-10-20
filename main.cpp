@@ -1,10 +1,11 @@
 #include "src/pch.h"
 #include "glad/glad.h"
-#include "GLFW/glfw3.h"
+#include <SDL.h>
+
 #include "src/renderer/renderer.h"
 
 #include "imgui.h"
-#include "backends/imgui_impl_glfw.h"
+#include "backends/imgui_impl_sdl.h"
 #include "backends/imgui_impl_opengl3.h"
 
 static int frameWidth, frameHeight;
@@ -22,6 +23,7 @@ void drawVector(const glm::vec2& vector, const glm::vec2& offset = glm::vec2(0.0
     sr::srVertex2f(vector + offset);
 }
 
+/*
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
 {
     if (action == GLFW_PRESS)
@@ -70,7 +72,7 @@ void mousePositionCallback(GLFWwindow* window, double xpos, double ypos)
     {
         EditPath[EditGrabIndex] = MousePosition;
     }
-}
+}*/
 
 int main()
 {
@@ -80,29 +82,38 @@ int main()
     SR_TRACE("19 mod 5 = %d",  19 % 5);
     SR_TRACE("19 mod 8 = %d",   19 % 8);
 
-    glfwInit();
-
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
-    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
-    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // Required on Mac
-    glfwWindowHint(GLFW_SAMPLES, 8);
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0)
+    {
+        printf("Error: %s\n", SDL_GetError());
+        return -1;
+    }
 
 
-    GLFWwindow* window = glfwCreateWindow(800, 800, "Rendering", NULL, NULL);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG); // Always required on Mac
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
 
-    glfwMakeContextCurrent(window);
-    sr::srLoad((sr::SRLoadProc)glfwGetProcAddress);
-    glfwSetKeyCallback(window, &keyCallback);
-    glfwSetMouseButtonCallback(window, &mouseButtonCallback);
-    glfwSetCursorPosCallback(window, &mousePositionCallback);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+    SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+
+    SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+    SDL_Window* window = SDL_CreateWindow("Software Rendering", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
+    SDL_GLContext gl_context = SDL_GL_CreateContext(window);
+    SDL_GL_MakeCurrent(window, gl_context);
+    SDL_GL_SetSwapInterval(1);
+    sr::srLoad((sr::SRLoadProc)SDL_GL_GetProcAddress);
+
+
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
     ImGui::StyleColorsDark();
 
-    ImGui_ImplGlfw_InitForOpenGL(window, true);
+
+    ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
     ImGui_ImplOpenGL3_Init();
 
     sr::MeshInit initData;
@@ -153,16 +164,23 @@ int main()
     bool drawArcs = false;
     int numArcSegments = 5;
 
-    while (!glfwWindowShouldClose(window))
+    bool done = false;
+    while (!done)
     {
-        glfwPollEvents();
-
-        glfwGetFramebufferSize(window, &frameWidth, &frameHeight);
+        SDL_Event event;
+        while (SDL_PollEvent(&event))
+        {
+            ImGui_ImplSDL2_ProcessEvent(&event);
+            if (event.type == SDL_QUIT)
+                done = true;
+            if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(window))
+                done = true;
+        }
         
 
         // ImGui
         ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplGlfw_NewFrame();
+        ImGui_ImplSDL2_NewFrame();
         ImGui::NewFrame();
 
         // ImGui calls
@@ -286,16 +304,21 @@ int main()
 
 
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-        glfwSwapBuffers(window);
+        SDL_GL_SwapWindow(window);
     }
 
     ImGui_ImplOpenGL3_Shutdown();
-    ImGui_ImplGlfw_Shutdown();
+    ImGui_ImplSDL2_Shutdown();
+
+
     ImGui::DestroyContext();
     sr::srTerminate();
-    glfwDestroyWindow(window);
-    glfwTerminate();
+
+
+    SDL_GL_DeleteContext(gl_context);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
+
 
     return 0;
 }
