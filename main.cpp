@@ -26,7 +26,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 {
     if (action == GLFW_PRESS)
     {
-        if (key = GLFW_KEY_LEFT_CONTROL)
+        if (key == GLFW_KEY_LEFT_CONTROL)
         {
             ControllPressed = true;
             SR_TRACE("Pressing Controll");
@@ -34,7 +34,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
     }
     else if (action == GLFW_RELEASE)
     {
-        if (key = GLFW_KEY_LEFT_CONTROL)
+        if (key == GLFW_KEY_LEFT_CONTROL)
         {
             ControllPressed = false;
         }

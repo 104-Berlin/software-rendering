@@ -805,7 +805,7 @@ namespace sr {
         unsigned int currentOffset = 0;
         for (const VertexArrayLayoutElement& elem : buffer.Layout)
         {
-          srSetVertexAttribute(elem.Location, srGetVertexAttributeComponentCount(elem.ElementType), srGetGLVertexAttribType(elem.ElementType), elem.Normalized, vertexSize, (const void*) currentOffset);
+          srSetVertexAttribute(elem.Location, srGetVertexAttributeComponentCount(elem.ElementType), srGetGLVertexAttribType(elem.ElementType), elem.Normalized, vertexSize, (const void*) (unsigned long long) currentOffset);
           srEnableVertexAttribute(elem.Location);
           currentOffset += srGetVertexAttributeTypeSize(elem.ElementType);
         }
@@ -963,11 +963,11 @@ namespace sr {
     srEnableVertexAttribute(0);
     srSetVertexAttribute(0, 3, GL_FLOAT, GL_FALSE, sizeof(RenderBatch::Vertex), 0);
     srEnableVertexAttribute(1);
-    srSetVertexAttribute(1, 3, GL_FLOAT, GL_FALSE, sizeof(RenderBatch::Vertex), (const void*) offsetof(RenderBatch::Vertex, RenderBatch::Vertex::Normal));
+    srSetVertexAttribute(1, 3, GL_FLOAT, GL_FALSE, sizeof(RenderBatch::Vertex), (const void*) offsetof(RenderBatch::Vertex, Normal));
     srEnableVertexAttribute(2);
-    srSetVertexAttribute(2, 2, GL_FLOAT, GL_FALSE, sizeof(RenderBatch::Vertex), (const void*) offsetof(RenderBatch::Vertex, RenderBatch::Vertex::UV));
+    srSetVertexAttribute(2, 2, GL_FLOAT, GL_FALSE, sizeof(RenderBatch::Vertex), (const void*) offsetof(RenderBatch::Vertex, UV));
     srEnableVertexAttribute(3);
-    srSetVertexAttribute(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(RenderBatch::Vertex), (const void*) offsetof(RenderBatch::Vertex, RenderBatch::Vertex::Color));
+    srSetVertexAttribute(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(RenderBatch::Vertex), (const void*) offsetof(RenderBatch::Vertex, Color));
     glBinding.VBOs.push_back({
                             {VertexArrayLayoutElement(EVertexAttributeType::FLOAT3, 0),
                             VertexArrayLayoutElement(EVertexAttributeType::FLOAT3, 1),
@@ -1022,7 +1022,7 @@ namespace sr {
         unsigned int currentOffset = 0;
         for (const VertexArrayLayoutElement& elem : buffer.Layout)
         {
-          srSetVertexAttribute(elem.Location, srGetVertexAttributeComponentCount(elem.ElementType), srGetGLVertexAttribType(elem.ElementType), elem.Normalized, vertexSize, (const void*) currentOffset);
+          srSetVertexAttribute(elem.Location, srGetVertexAttributeComponentCount(elem.ElementType), srGetGLVertexAttribType(elem.ElementType), elem.Normalized, vertexSize, (const void*) (unsigned long long) currentOffset);
           srEnableVertexAttribute(elem.Location);
           currentOffset += srGetVertexAttributeTypeSize(elem.ElementType);
         }
@@ -1048,6 +1048,7 @@ namespace sr {
       case EBatchDrawMode::LINES:     glCall(glDrawArrays(GL_LINES, vertexOffset, batch->DrawCalls[i].VertexCount)); break;
       case EBatchDrawMode::TRIANGLES: glCall(glDrawArrays(GL_TRIANGLES, vertexOffset, batch->DrawCalls[i].VertexCount)); break;
       case EBatchDrawMode::QUADS:     glCall(glDrawElements(GL_TRIANGLES, batch->DrawCalls[i].VertexCount/4*6, GL_UNSIGNED_INT, (GLvoid*) (vertexOffset / 4 * 6 * sizeof(unsigned int)))); break;
+      case EBatchDrawMode::UNKNOWN:   break;
       }
       srBindTexture({});
       vertexOffset += batch->DrawCalls[i].VertexCount + batch->DrawCalls[i].VertexAlignment;
