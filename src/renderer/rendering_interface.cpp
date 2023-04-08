@@ -2,15 +2,13 @@
 #include "renderer.h"
 #include "glad/glad.h"
 
-
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image/stb_image.h"
 
+sr::SRContext *sr::SRC = nullptr;
 
-sr::SRContext* sr::SRC = nullptr;
-
-const char* basicMeshVertexShader = R"(
+const char *basicMeshVertexShader = R"(
   #version 330 core
 
   layout(location = 0) in vec3 vPosition;
@@ -31,7 +29,7 @@ const char* basicMeshVertexShader = R"(
   }
 )";
 
-const char* basicMeshFragmentShader = R"(
+const char *basicMeshFragmentShader = R"(
   #version 330 core
 
   layout(location = 0) out vec4 fragColor;
@@ -59,55 +57,54 @@ const char* basicMeshFragmentShader = R"(
 static const unsigned int FONT_TEXTURE_SIZE = 1024;
 static const unsigned int FONT_TEXTURE_DEPTH = 1;
 
-
-char const* gl_error_string(GLenum const err) 
+char const *gl_error_string(GLenum const err)
 {
   switch (err)
   {
-    // opengl 2 errors (8)
-    case GL_NO_ERROR:
-      return "GL_NO_ERROR";
+  // opengl 2 errors (8)
+  case GL_NO_ERROR:
+    return "GL_NO_ERROR";
 
-    case GL_INVALID_ENUM:
-      return "GL_INVALID_ENUM";
+  case GL_INVALID_ENUM:
+    return "GL_INVALID_ENUM";
 
-    case GL_INVALID_VALUE:
-      return "GL_INVALID_VALUE";
+  case GL_INVALID_VALUE:
+    return "GL_INVALID_VALUE";
 
-    case GL_INVALID_OPERATION:
-      return "GL_INVALID_OPERATION";
+  case GL_INVALID_OPERATION:
+    return "GL_INVALID_OPERATION";
 
-    case GL_STACK_OVERFLOW:
-      return "GL_STACK_OVERFLOW";
+  case GL_STACK_OVERFLOW:
+    return "GL_STACK_OVERFLOW";
 
-    case GL_STACK_UNDERFLOW:
-      return "GL_STACK_UNDERFLOW";
+  case GL_STACK_UNDERFLOW:
+    return "GL_STACK_UNDERFLOW";
 
-    case GL_OUT_OF_MEMORY:
-      return "GL_OUT_OF_MEMORY";
+  case GL_OUT_OF_MEMORY:
+    return "GL_OUT_OF_MEMORY";
 
-    // opengl 3 errors (1)
-    case GL_INVALID_FRAMEBUFFER_OPERATION:
-      return "GL_INVALID_FRAMEBUFFER_OPERATION";
-    default:
-      return nullptr;
+  // opengl 3 errors (1)
+  case GL_INVALID_FRAMEBUFFER_OPERATION:
+    return "GL_INVALID_FRAMEBUFFER_OPERATION";
+  default:
+    return nullptr;
   }
 }
 
-#define glCall(x)                                                                            \
-    x;                                                                                       \
-    {GLenum glob_err = 0;                                                                     \
-    while ((glob_err = glGetError()) != GL_NO_ERROR)                                         \
-    {                                                                                        \
-        printf("GL_ERROR calling \"%s\": %s %s\n", #x, gl_error_string(glob_err), __FILE__); \
-    }}
+#define glCall(x)                                                                          \
+  x;                                                                                       \
+  {                                                                                        \
+    GLenum glob_err = 0;                                                                   \
+    while ((glob_err = glGetError()) != GL_NO_ERROR)                                       \
+    {                                                                                      \
+      printf("GL_ERROR calling \"%s\": %s %s\n", #x, gl_error_string(glob_err), __FILE__); \
+    }                                                                                      \
+  }
 
+namespace sr
+{
 
-
-
-namespace sr {
-
-  static RectangleCorners operator+(const RectangleCorners& corner, const glm::vec2& offset)
+  static RectangleCorners operator+(const RectangleCorners &corner, const glm::vec2 &offset)
   {
     RectangleCorners result = corner;
     result.TopLeft += offset;
@@ -117,7 +114,7 @@ namespace sr {
     return result;
   }
 
-  static RectangleCorners& operator+=(RectangleCorners& corner, const glm::vec2& offset)
+  static RectangleCorners &operator+=(RectangleCorners &corner, const glm::vec2 &offset)
   {
     corner.TopLeft += offset;
     corner.BottomLeft += offset;
@@ -142,7 +139,7 @@ namespace sr {
     if (SRC)
     {
       // Unload loaded meshes
-      for (Mesh& mesh : SRC->AutoReleaseMeshes)
+      for (Mesh &mesh : SRC->AutoReleaseMeshes)
       {
         srUnloadMesh(&mesh);
       }
@@ -161,7 +158,7 @@ namespace sr {
     glCall(glEnable(GL_MULTISAMPLE));
   }
 
-  R_API void srInitContext(SRContext* context)
+  R_API void srInitContext(SRContext *context)
   {
     if (context->DefaultShader.ID == 0)
     {
@@ -182,7 +179,7 @@ namespace sr {
     SRC->CurrentProjection = glm::orthoLH(-halfWidth, halfWidth, -halfHeight, halfHeight, -1.0f, 1.0f);
     SRC->RenderBatch.CurrentDepth = 0.0f;
   }
-  
+
   R_API void srEndFrame()
   {
     srDrawRenderBatch(&SRC->RenderBatch);
@@ -190,12 +187,12 @@ namespace sr {
 
   R_API void srClear(int mask)
   {
-      glCall(glClear(mask));
+    glCall(glClear(mask));
   }
-  
+
   R_API void srClearColor(float r, float g, float b, float a)
   {
-      glCall(glClearColor(r, g, b, a));
+    glCall(glClearColor(r, g, b, a));
   }
 
   R_API void srViewport(float x, float y, float width, float height)
@@ -207,8 +204,12 @@ namespace sr {
   {
     switch (mode)
     {
-      case PolygonFillMode_Fill: glCall(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL)); break;
-      case PolygonFillMode_Line: glCall(glPolygonMode(GL_FRONT_AND_BACK, GL_LINE)); break;
+    case PolygonFillMode_Fill:
+      glCall(glPolygonMode(GL_FRONT_AND_BACK, GL_FILL));
+      break;
+    case PolygonFillMode_Line:
+      glCall(glPolygonMode(GL_FRONT_AND_BACK, GL_LINE));
+      break;
     }
   }
 
@@ -220,13 +221,10 @@ namespace sr {
     b = srClamp(b, 0.0f, 1.0f);
     a = srClamp(a, 0.0f, 1.0f);
 
-    return  (((unsigned char) (a * 255)) << 24) 
-          | (((unsigned char) (b * 255)) << 16) 
-          | (((unsigned char) (g * 255)) << 8) 
-          |  ((unsigned char) (r * 255));
+    return (((unsigned char)(a * 255)) << 24) | (((unsigned char)(b * 255)) << 16) | (((unsigned char)(g * 255)) << 8) | ((unsigned char)(r * 255));
   }
 
-  R_API Color srGetColorFromFloat(const glm::vec4& color)
+  R_API Color srGetColorFromFloat(const glm::vec4 &color)
   {
     return srGetColorFromFloat(color.x, color.y, color.z, color.w);
   }
@@ -241,7 +239,7 @@ namespace sr {
   }
 
   // MATH
-  R_API RectangleCorners srGetRotatedRectangle(const Rectangle& rect, float rotation)
+  R_API RectangleCorners srGetRotatedRectangle(const Rectangle &rect, float rotation)
   {
     RectangleCorners result;
 
@@ -251,100 +249,97 @@ namespace sr {
     float dx = -rect.OriginX;
     float dy = -rect.OriginY;
 
-    result.TopLeft.x = dx*cos - (dy + rect.Height)*sin;
-    result.TopLeft.y = dx*sin + (dy + rect.Height)*cos;
+    result.TopLeft.x = dx * cos - (dy + rect.Height) * sin;
+    result.TopLeft.y = dx * sin + (dy + rect.Height) * cos;
 
-    result.TopRight.x = (dx + rect.Width)*cos - (dy + rect.Height)*sin;
-    result.TopRight.y = (dx + rect.Width)*sin + (dy + rect.Height)*cos;
+    result.TopRight.x = (dx + rect.Width) * cos - (dy + rect.Height) * sin;
+    result.TopRight.y = (dx + rect.Width) * sin + (dy + rect.Height) * cos;
 
-    result.BottomLeft.x = dx*cos - dy*sin;
-    result.BottomLeft.y = dx*sin + dy*cos;
+    result.BottomLeft.x = dx * cos - dy * sin;
+    result.BottomLeft.y = dx * sin + dy * cos;
 
-    result.BottomRight.x = (dx + rect.Width)*cos - dy*sin;
-    result.BottomRight.y = (dx + rect.Width)*sin + dy*cos;
+    result.BottomRight.x = (dx + rect.Width) * cos - dy * sin;
+    result.BottomRight.y = (dx + rect.Width) * sin + dy * cos;
 
     return result;
   }
 
-
-
-
-  R_API Shader srLoadShader(const char* vertSrc, const char* fragSrc)
+  R_API Shader srLoadShader(const char *vertSrc, const char *fragSrc)
   {
-      int prog_id = glCall(glCreateProgram());
+    int prog_id = glCall(glCreateProgram());
 
-      int vert_id = srCompileShader(GL_VERTEX_SHADER, vertSrc);
-      int frag_id = srCompileShader(GL_FRAGMENT_SHADER, fragSrc);
+    int vert_id = srCompileShader(GL_VERTEX_SHADER, vertSrc);
+    int frag_id = srCompileShader(GL_FRAGMENT_SHADER, fragSrc);
 
-      glCall(glAttachShader(prog_id, vert_id));
-      glCall(glAttachShader(prog_id, frag_id));
+    glCall(glAttachShader(prog_id, vert_id));
+    glCall(glAttachShader(prog_id, frag_id));
 
-      glCall(glLinkProgram(prog_id));
+    glCall(glLinkProgram(prog_id));
 
-      // NOTE: All uniform variables are intitialised to 0 when a program links
+    // NOTE: All uniform variables are intitialised to 0 when a program links
 
-      int error;
-      glCall(glGetProgramiv(prog_id, GL_LINK_STATUS, &error));
+    int error;
+    glCall(glGetProgramiv(prog_id, GL_LINK_STATUS, &error));
 
-      if (error == 0)
+    if (error == 0)
+    {
+      SR_TRACE("SHADER: [ID %i] Failed to link shader program", prog_id);
+
+      int maxLength = 0;
+      glCall(glGetProgramiv(prog_id, GL_INFO_LOG_LENGTH, &maxLength));
+
+      if (maxLength > 0)
       {
-          SR_TRACE("SHADER: [ID %i] Failed to link shader program", prog_id);
-
-          int maxLength = 0;
-          glCall(glGetProgramiv(prog_id, GL_INFO_LOG_LENGTH, &maxLength));
-
-          if (maxLength > 0)
-          {
-              int length = 0;
-              char *log = (char*) malloc(maxLength * sizeof(char));
-              glCall(glGetProgramInfoLog(prog_id, maxLength, &length, log));
-              SR_TRACE("SHADER: [ID %i] Link error: %s", prog_id, log);
-              free(log);
-          }
-
-          glCall(glDeleteProgram(prog_id));
-
-          prog_id = 0;
+        int length = 0;
+        char *log = (char *)malloc(maxLength * sizeof(char));
+        glCall(glGetProgramInfoLog(prog_id, maxLength, &length, log));
+        SR_TRACE("SHADER: [ID %i] Link error: %s", prog_id, log);
+        free(log);
       }
 
-      if (prog_id == 0)
-      {
-          // In case shader loading fails, we return the default shader
-          SR_TRACE("SHADER: Failed to load custom shader code.");
-      }
-      /*
-      else
-      {
-          // Get available shader uniforms
-          // NOTE: This information is useful for debug...
-          int uniformCount = -1;
-          glGetProgramiv(id, GL_ACTIVE_UNIFORMS, &uniformCount);
+      glCall(glDeleteProgram(prog_id));
 
-          for (int i = 0; i < uniformCount; i++)
-          {
-              int namelen = -1;
-              int num = -1;
-              char name[256] = { 0 };     // Assume no variable names longer than 256
-              GLenum type = GL_ZERO;
+      prog_id = 0;
+    }
 
-              // Get the name of the uniforms
-              glGetActiveUniform(id, i, sizeof(name) - 1, &namelen, &num, &type, name);
+    if (prog_id == 0)
+    {
+      // In case shader loading fails, we return the default shader
+      SR_TRACE("SHADER: Failed to load custom shader code.");
+    }
+    /*
+    else
+    {
+        // Get available shader uniforms
+        // NOTE: This information is useful for debug...
+        int uniformCount = -1;
+        glGetProgramiv(id, GL_ACTIVE_UNIFORMS, &uniformCount);
 
-              name[namelen] = 0;
-              TRACELOGD("SHADER: [ID %i] Active uniform (%s) set at location: %i", id, name, glGetUniformLocation(id, name));
-          }
-      }*/
+        for (int i = 0; i < uniformCount; i++)
+        {
+            int namelen = -1;
+            int num = -1;
+            char name[256] = { 0 };     // Assume no variable names longer than 256
+            GLenum type = GL_ZERO;
 
-      srDeleteShader(GL_VERTEX_SHADER, vert_id);
-      srDeleteShader(GL_FRAGMENT_SHADER, frag_id);
+            // Get the name of the uniforms
+            glGetActiveUniform(id, i, sizeof(name) - 1, &namelen, &num, &type, name);
 
-      Shader result = {0};
-      result.ID = prog_id;
-      result.UniformLocations = new int[(size_t)EUniformLocation::UNIFORM_MAX_SIZE];
-      return result;
+            name[namelen] = 0;
+            TRACELOGD("SHADER: [ID %i] Active uniform (%s) set at location: %i", id, name, glGetUniformLocation(id, name));
+        }
+    }*/
+
+    srDeleteShader(GL_VERTEX_SHADER, vert_id);
+    srDeleteShader(GL_FRAGMENT_SHADER, frag_id);
+
+    Shader result = {0};
+    result.ID = prog_id;
+    result.UniformLocations = new int[(size_t)EUniformLocation::UNIFORM_MAX_SIZE];
+    return result;
   }
 
-  R_API int srCompileShader(int shader_type, const char* shader_source)
+  R_API int srCompileShader(int shader_type, const char *shader_source)
   {
     int result = glCall(glCreateShader(shader_type));
     glCall(glShaderSource(result, 1, &shader_source, NULL));
@@ -354,38 +349,50 @@ namespace sr {
     glCall(glGetShaderiv(result, GL_COMPILE_STATUS, &error));
     if (error == 0)
     {
-        switch (shader_type)
-        {
-        case GL_VERTEX_SHADER: SR_TRACE("SHADER: Failed Compiling Vertex Shader [ID %i]", result); break;
-        case GL_FRAGMENT_SHADER: SR_TRACE("SHADER: Failed Compiling Fragment Shader [ID %i]", result); break;
-        case GL_GEOMETRY_SHADER: SR_TRACE("SHADER: Failed Compiling Geometry Shader [ID %i]", result); break;
-        
+      switch (shader_type)
+      {
+      case GL_VERTEX_SHADER:
+        SR_TRACE("SHADER: Failed Compiling Vertex Shader [ID %i]", result);
+        break;
+      case GL_FRAGMENT_SHADER:
+        SR_TRACE("SHADER: Failed Compiling Fragment Shader [ID %i]", result);
+        break;
+      case GL_GEOMETRY_SHADER:
+        SR_TRACE("SHADER: Failed Compiling Geometry Shader [ID %i]", result);
+        break;
 
-        default:
-            break;
-        }
+      default:
+        break;
+      }
 
-        int maxLength = 0;
-        glCall(glGetShaderiv(result, GL_INFO_LOG_LENGTH, &maxLength));
+      int maxLength = 0;
+      glCall(glGetShaderiv(result, GL_INFO_LOG_LENGTH, &maxLength));
 
-        if (maxLength > 0)
-        {
-            int length = 0;
-            char *log = (char*) malloc(maxLength * sizeof(char));
-            glCall(glGetShaderInfoLog(result, maxLength, &length, log));
-            SR_TRACE("SHADER: [ID %i] Compile error: %s", result, log);
-            free(log);
-        }
+      if (maxLength > 0)
+      {
+        int length = 0;
+        char *log = (char *)malloc(maxLength * sizeof(char));
+        glCall(glGetShaderInfoLog(result, maxLength, &length, log));
+        SR_TRACE("SHADER: [ID %i] Compile error: %s", result, log);
+        free(log);
+      }
     }
     else
     {
-        switch (shader_type)
-        {
-        case GL_VERTEX_SHADER: SR_TRACE("SHADER: Successfully compiled Vertex Shader [ID %i]", result); break;
-        case GL_FRAGMENT_SHADER: SR_TRACE("SHADER: Successfully compiled Fragment Shader [ID %i]", result); break;
-        case GL_GEOMETRY_SHADER: SR_TRACE("SHADER: Successfully compiled Geometry Shader [ID %i]", result); break;
-        default: break;
-        }
+      switch (shader_type)
+      {
+      case GL_VERTEX_SHADER:
+        SR_TRACE("SHADER: Successfully compiled Vertex Shader [ID %i]", result);
+        break;
+      case GL_FRAGMENT_SHADER:
+        SR_TRACE("SHADER: Successfully compiled Fragment Shader [ID %i]", result);
+        break;
+      case GL_GEOMETRY_SHADER:
+        SR_TRACE("SHADER: Successfully compiled Geometry Shader [ID %i]", result);
+        break;
+      default:
+        break;
+      }
     }
 
     return result;
@@ -401,7 +408,7 @@ namespace sr {
     glCall(glUseProgram(shader.ID));
   }
 
-  R_API unsigned int srShaderGetUniformLocation(const char* name, Shader shader)
+  R_API unsigned int srShaderGetUniformLocation(const char *name, Shader shader)
   {
     unsigned int result = glCall(glGetUniformLocation(shader.ID, name));
     if (result == -1)
@@ -411,7 +418,7 @@ namespace sr {
     return result;
   }
 
-  R_API void srShaderSetUniform1b(Shader shader, const char* name, bool value)
+  R_API void srShaderSetUniform1b(Shader shader, const char *name, bool value)
   {
     unsigned int location = srShaderGetUniformLocation(name, shader);
     if (location != -1)
@@ -420,7 +427,7 @@ namespace sr {
     }
   }
 
-  R_API void srShaderSetUniform1i(Shader shader, const char* name, int value)
+  R_API void srShaderSetUniform1i(Shader shader, const char *name, int value)
   {
     unsigned int location = srShaderGetUniformLocation(name, shader);
     if (location != -1)
@@ -429,7 +436,7 @@ namespace sr {
     }
   }
 
-  R_API void srShaderSetUniform2f(Shader shader, const char* name, const glm::vec2& value)
+  R_API void srShaderSetUniform2f(Shader shader, const char *name, const glm::vec2 &value)
   {
     unsigned int location = srShaderGetUniformLocation(name, shader);
     if (location != -1)
@@ -438,7 +445,7 @@ namespace sr {
     }
   }
 
-  R_API void srShaderSetUniform3f(Shader shader, const char* name, const glm::vec3& value)
+  R_API void srShaderSetUniform3f(Shader shader, const char *name, const glm::vec3 &value)
   {
     unsigned int location = srShaderGetUniformLocation(name, shader);
     if (location != -1)
@@ -447,7 +454,7 @@ namespace sr {
     }
   }
 
-  R_API void srShaderSetUniformMat4(Shader shader, const char* name, const glm::mat4& value)
+  R_API void srShaderSetUniformMat4(Shader shader, const char *name, const glm::mat4 &value)
   {
     unsigned int location = srShaderGetUniformLocation(name, shader);
     if (location != -1)
@@ -456,27 +463,28 @@ namespace sr {
     }
   }
 
-
   R_API void srSetDefaultShaderUniforms(Shader shader)
   {
     srUseShader(shader);
 
     srShaderSetUniformMat4(shader, "ProjectionMatrix", SRC->CurrentProjection);
     srShaderSetUniform1i(shader, "Texture", 0);
-    //srShaderSetUniform1b(shader, "UseTexture", false);
+    // srShaderSetUniform1b(shader, "UseTexture", false);
   }
 
   R_API unsigned int srTextureFormatToGL(TextureFormat_ format)
   {
     switch (format)
     {
-    case TextureFormat_R8: return GL_RED;
-    case TextureFormat_RGB8: return GL_RGB;
-    case TextureFormat_RGBA8: return GL_RGBA;
+    case TextureFormat_R8:
+      return GL_RED;
+    case TextureFormat_RGB8:
+      return GL_RGB;
+    case TextureFormat_RGBA8:
+      return GL_RGBA;
     }
     return 0;
   }
-
 
   R_API Texture srLoadTexture(unsigned int width, unsigned int height, TextureFormat_ format)
   {
@@ -496,7 +504,7 @@ namespace sr {
 
     const size_t size = width * height * bytePerPixel;
 
-    unsigned char* buffer = new unsigned char[size];
+    unsigned char *buffer = new unsigned char[size];
     memset(buffer, 0, size);
 
     srTextureSetData(result, width, height, format, buffer);
@@ -504,12 +512,12 @@ namespace sr {
     return result;
   }
 
-  R_API Texture srLoadTextureFromFile(const char* path)
+  R_API Texture srLoadTextureFromFile(const char *path)
   {
     int width = 0;
     int height = 0;
     int comp = 0;
-    unsigned char* data = stbi_load(path, &width, &height, &comp, 3);
+    unsigned char *data = stbi_load(path, &width, &height, &comp, 3);
 
     if (data == NULL)
     {
@@ -519,8 +527,14 @@ namespace sr {
     SR_TRACE("Loading texture \"%s\". W=%d H=%d C=%d", path, width, height, comp);
 
     TextureFormat_ format = TextureFormat_RGBA8;
-    if (comp == 1) { format = TextureFormat_R8; }
-    else if (comp == 3) { format = TextureFormat_RGB8; }
+    if (comp == 1)
+    {
+      format = TextureFormat_R8;
+    }
+    else if (comp == 3)
+    {
+      format = TextureFormat_RGB8;
+    }
     Texture result = srLoadTexture(width, height, format);
 
     srTextureSetData(result, width, height, format, data);
@@ -529,7 +543,7 @@ namespace sr {
     return result;
   }
 
-  R_API void srUnloadTexture(Texture* texture)
+  R_API void srUnloadTexture(Texture *texture)
   {
     if (texture->ID != 0)
     {
@@ -543,7 +557,7 @@ namespace sr {
     glCall(glBindTexture(GL_TEXTURE_2D, texture.ID));
   }
 
-  R_API void srTextureSetData(Texture texture, unsigned int width, unsigned int height, TextureFormat_ format, unsigned char* data)
+  R_API void srTextureSetData(Texture texture, unsigned int width, unsigned int height, TextureFormat_ format, unsigned char *data)
   {
     srBindTexture(texture);
     glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
@@ -560,15 +574,14 @@ namespace sr {
     srBindTexture({0});
   }
 
-
   R_API void srTexturePrintData(Texture texutre, const unsigned int width, const unsigned int height, TextureFormat_ format)
   {
     const size_t bytePerPixel = srTextureFormatSize(format);
     const size_t size = width * height * bytePerPixel;
 
-    unsigned char* buffer = new unsigned char[size];
+    unsigned char *buffer = new unsigned char[size];
     glGetTexImage(GL_TEXTURE_2D, 0, srTextureFormatToGL(format), GL_UNSIGNED_BYTE, buffer);
-    
+
     printf("Texture data\n");
     for (unsigned int y = 0; y < height; y++)
     {
@@ -579,9 +592,8 @@ namespace sr {
       printf("\n");
     }
 
-    delete [] buffer;
+    delete[] buffer;
   }
-
 
   // Vertex Arrays
 
@@ -592,14 +604,18 @@ namespace sr {
     case EVertexAttributeType::INT:
     case EVertexAttributeType::UINT:
     case EVertexAttributeType::BOOL:
-    case EVertexAttributeType::FLOAT:   return 1;
+    case EVertexAttributeType::FLOAT:
+      return 1;
     case EVertexAttributeType::FLOAT2:
-    case EVertexAttributeType::INT2:    return 2;
+    case EVertexAttributeType::INT2:
+      return 2;
     case EVertexAttributeType::FLOAT3:
-    case EVertexAttributeType::INT3:    return 3;
+    case EVertexAttributeType::INT3:
+      return 3;
     case EVertexAttributeType::FLOAT4:
-    case EVertexAttributeType::INT4:  
-    case EVertexAttributeType::BYTE4:   return 4;
+    case EVertexAttributeType::INT4:
+    case EVertexAttributeType::BYTE4:
+      return 4;
     }
     SR_TRACE("ERROR: Could not get vertex attrib type component count");
 
@@ -610,17 +626,28 @@ namespace sr {
   {
     switch (type)
     {
-    case EVertexAttributeType::INT:     return sizeof(int);
-    case EVertexAttributeType::UINT:    return sizeof(unsigned int);
-    case EVertexAttributeType::BOOL:    return sizeof(bool);
-    case EVertexAttributeType::FLOAT:   return sizeof(float);
-    case EVertexAttributeType::FLOAT2:  return sizeof(float) * 2;
-    case EVertexAttributeType::INT2:    return sizeof(int) * 2;
-    case EVertexAttributeType::FLOAT3:  return sizeof(float) * 3;
-    case EVertexAttributeType::INT3:    return sizeof(int) * 3;
-    case EVertexAttributeType::FLOAT4:  return sizeof(float) * 4;
-    case EVertexAttributeType::INT4:    return sizeof(int) * 4;
-    case EVertexAttributeType::BYTE4:   return sizeof(unsigned char) * 4;
+    case EVertexAttributeType::INT:
+      return sizeof(int);
+    case EVertexAttributeType::UINT:
+      return sizeof(unsigned int);
+    case EVertexAttributeType::BOOL:
+      return sizeof(bool);
+    case EVertexAttributeType::FLOAT:
+      return sizeof(float);
+    case EVertexAttributeType::FLOAT2:
+      return sizeof(float) * 2;
+    case EVertexAttributeType::INT2:
+      return sizeof(int) * 2;
+    case EVertexAttributeType::FLOAT3:
+      return sizeof(float) * 3;
+    case EVertexAttributeType::INT3:
+      return sizeof(int) * 3;
+    case EVertexAttributeType::FLOAT4:
+      return sizeof(float) * 4;
+    case EVertexAttributeType::INT4:
+      return sizeof(int) * 4;
+    case EVertexAttributeType::BYTE4:
+      return sizeof(unsigned char) * 4;
     }
     SR_TRACE("ERROR: Could not get vertex attrib type component count");
 
@@ -632,33 +659,37 @@ namespace sr {
     switch (type)
     {
 
-      case EVertexAttributeType::FLOAT: 
-      case EVertexAttributeType::FLOAT2: 
-      case EVertexAttributeType::FLOAT3: 
-      case EVertexAttributeType::FLOAT4: return GL_FLOAT;
-      case EVertexAttributeType::INT:
-      case EVertexAttributeType::INT2:
-      case EVertexAttributeType::INT3:
-      case EVertexAttributeType::INT4: return GL_INT;
-      case EVertexAttributeType::UINT: return GL_UNSIGNED_INT;
-      case EVertexAttributeType::BOOL: return GL_BOOL;
-      case EVertexAttributeType::BYTE4: return GL_UNSIGNED_BYTE;
+    case EVertexAttributeType::FLOAT:
+    case EVertexAttributeType::FLOAT2:
+    case EVertexAttributeType::FLOAT3:
+    case EVertexAttributeType::FLOAT4:
+      return GL_FLOAT;
+    case EVertexAttributeType::INT:
+    case EVertexAttributeType::INT2:
+    case EVertexAttributeType::INT3:
+    case EVertexAttributeType::INT4:
+      return GL_INT;
+    case EVertexAttributeType::UINT:
+      return GL_UNSIGNED_INT;
+    case EVertexAttributeType::BOOL:
+      return GL_BOOL;
+    case EVertexAttributeType::BYTE4:
+      return GL_UNSIGNED_BYTE;
     }
     SR_TRACE("ERROR: Could not convert vertex attrib type");
     return 0;
   }
 
-  R_API size_t srGetVertexLayoutSize(const VertexArrayLayout& layout)
+  R_API size_t srGetVertexLayoutSize(const VertexArrayLayout &layout)
   {
     size_t size = 0;
-    for (const VertexArrayLayoutElement& elem : layout)
+    for (const VertexArrayLayoutElement &elem : layout)
     {
       size += srGetVertexAttributeTypeSize(elem.ElementType);
     }
     return size;
   }
 
-  
   // TODO: VAO check support. (If done remove TODO in header file)
   R_API unsigned int srLoadVertexArray()
   {
@@ -675,7 +706,6 @@ namespace sr {
     }
   }
 
-  
   R_API bool srBindVertexArray(unsigned int id)
   {
     bool result = false;
@@ -685,17 +715,17 @@ namespace sr {
     return result;
   }
 
-  R_API void srSetVertexAttribute(unsigned int location, unsigned int numElements, unsigned int type, bool normalized, int stride, const void* pointer)
+  R_API void srSetVertexAttribute(unsigned int location, unsigned int numElements, unsigned int type, bool normalized, int stride, const void *pointer)
   {
     glVertexAttribPointer(location, numElements, type, normalized, stride, pointer);
   }
-  
+
   R_API void srEnableVertexAttribute(unsigned int location)
   {
     glEnableVertexAttribArray(location);
   }
 
-  R_API Mesh srLoadMesh(const MeshInit& initData)
+  R_API Mesh srLoadMesh(const MeshInit &initData)
   {
     Mesh result{};
     if (initData.Vertices.size() == 0)
@@ -703,9 +733,7 @@ namespace sr {
       SR_TRACE("No Vertices provided for LoadingMesh");
       return result;
     }
-    assert(!(initData.Vertices.size() 
-            == (initData.Normals.size() == 0 ? initData.Vertices.size() : initData.Normals.size())
-            == (initData.TexCoord1.size() == 0 ? initData.Vertices.size() : initData.TexCoord1.size())));
+    assert(!(initData.Vertices.size() == (initData.Normals.size() == 0 ? initData.Vertices.size() : initData.Normals.size()) == (initData.TexCoord1.size() == 0 ? initData.Vertices.size() : initData.TexCoord1.size())));
 
     result.VertexCount = initData.Vertices.size();
     result.ElementCount = initData.Indices.size();
@@ -744,8 +772,7 @@ namespace sr {
     return result;
   }
 
-
-  R_API unsigned int srLoadVertexBuffer(void* data, size_t data_size)
+  R_API unsigned int srLoadVertexBuffer(void *data, size_t data_size)
   {
     unsigned int result = 0;
     glCall(glGenBuffers(1, &result));
@@ -755,7 +782,7 @@ namespace sr {
     return result;
   }
 
-  R_API unsigned int srLoadElementBuffer(void* data, size_t data_size)
+  R_API unsigned int srLoadElementBuffer(void *data, size_t data_size)
   {
     unsigned int result = 0;
     glCall(glGenBuffers(1, &result));
@@ -773,8 +800,6 @@ namespace sr {
     }
   }
 
-
-  
   R_API void srBindVertexBuffer(unsigned int id)
   {
     glCall(glBindBuffer(GL_ARRAY_BUFFER, id));
@@ -785,8 +810,7 @@ namespace sr {
     glCall(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, id));
   }
 
-  
-  R_API void srDrawMesh(const Mesh& mesh)
+  R_API void srDrawMesh(const Mesh &mesh)
   {
     if (mesh.VAO.VAO <= 0)
     {
@@ -797,15 +821,15 @@ namespace sr {
 
     if (!srBindVertexArray(mesh.VAO.VAO))
     {
-      for (const auto& buffer : mesh.VAO.VBOs)
+      for (const auto &buffer : mesh.VAO.VBOs)
       {
         srBindVertexBuffer(buffer.ID);
-        
+
         unsigned int vertexSize = srGetVertexLayoutSize(buffer.Layout);
         unsigned int currentOffset = 0;
-        for (const VertexArrayLayoutElement& elem : buffer.Layout)
+        for (const VertexArrayLayoutElement &elem : buffer.Layout)
         {
-          srSetVertexAttribute(elem.Location, srGetVertexAttributeComponentCount(elem.ElementType), srGetGLVertexAttribType(elem.ElementType), elem.Normalized, vertexSize, (const void*) (unsigned long long) currentOffset);
+          srSetVertexAttribute(elem.Location, srGetVertexAttributeComponentCount(elem.ElementType), srGetGLVertexAttribType(elem.ElementType), elem.Normalized, vertexSize, (const void *)(unsigned long long)currentOffset);
           srEnableVertexAttribute(elem.Location);
           currentOffset += srGetVertexAttributeTypeSize(elem.ElementType);
         }
@@ -814,7 +838,7 @@ namespace sr {
 
     if (mesh.VAO.IBO != 0)
     {
-      //srBindElementBuffer(mesh.VAO.IBO); // In case mac does not work use this here
+      // srBindElementBuffer(mesh.VAO.IBO); // In case mac does not work use this here
       glCall(glDrawElements(GL_TRIANGLES, mesh.ElementCount, GL_UNSIGNED_INT, NULL));
     }
     else
@@ -823,7 +847,7 @@ namespace sr {
     }
   }
 
-  R_API void srUploadMesh(Mesh* mesh)
+  R_API void srUploadMesh(Mesh *mesh)
   {
     if (mesh->VAO.VAO > 0)
     {
@@ -833,7 +857,7 @@ namespace sr {
     VertexBuffers vertexArray;
     vertexArray.VAO = srLoadVertexArray();
     srBindVertexArray(vertexArray.VAO);
-    
+
     unsigned int vbo_position = srLoadVertexBuffer(mesh->Vertices, mesh->VertexCount * sizeof(glm::vec3));
     srEnableVertexAttribute(0);
     srSetVertexAttribute(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
@@ -873,13 +897,13 @@ namespace sr {
     mesh->VAO = vertexArray;
   }
 
-  R_API void srUnloadMesh(Mesh* mesh)
+  R_API void srUnloadMesh(Mesh *mesh)
   {
     srUnloadVertexBuffers(mesh->VAO);
     srDeleteMeshCPUData(mesh);
   }
 
-  R_API void srDeleteMeshCPUData(Mesh* mesh)
+  R_API void srDeleteMeshCPUData(Mesh *mesh)
   {
     if (mesh->Vertices)
     {
@@ -904,13 +928,11 @@ namespace sr {
     if (mesh->Colors)
     {
       delete[] mesh->Colors;
-      mesh->Colors = NULL; 
+      mesh->Colors = NULL;
     }
   }
 
-
-
-  R_API void srUnloadVertexBuffers(const VertexBuffers& vao)
+  R_API void srUnloadVertexBuffers(const VertexBuffers &vao)
   {
     // Delete Vertex buffers
     for (VertexBuffers::VertBuf buff : vao.VBOs)
@@ -931,29 +953,27 @@ namespace sr {
     result.CurrentDraw = 0;
     result.DrawCalls = new RenderBatch::DrawCall[SR_BATCH_DRAW_CALLS];
     result.VertexCounter = 0;
-    
+
     result.DrawBuffer.Vertices = new RenderBatch::Vertex[bufferSize * 4];
     memset(result.DrawBuffer.Vertices, 0, bufferSize * 4 * sizeof(RenderBatch::Vertex));
     result.DrawBuffer.Indices = new unsigned int[bufferSize * 6];
     memset(result.DrawBuffer.Indices, 0, bufferSize * 4 * sizeof(unsigned int));
     result.DrawBuffer.ElementCount = bufferSize * 4;
 
-
     int k = 0;
 
     // Indices can be initialized right now
-    for (int j = 0; j < (6*bufferSize); j += 6)
+    for (int j = 0; j < (6 * bufferSize); j += 6)
     {
-        result.DrawBuffer.Indices[j] = 4*k;
-        result.DrawBuffer.Indices[j + 1] = 4*k + 1;
-        result.DrawBuffer.Indices[j + 2] = 4*k + 2;
-        result.DrawBuffer.Indices[j + 3] = 4*k;
-        result.DrawBuffer.Indices[j + 4] = 4*k + 2;
-        result.DrawBuffer.Indices[j + 5] = 4*k + 3;
+      result.DrawBuffer.Indices[j] = 4 * k;
+      result.DrawBuffer.Indices[j + 1] = 4 * k + 1;
+      result.DrawBuffer.Indices[j + 2] = 4 * k + 2;
+      result.DrawBuffer.Indices[j + 3] = 4 * k;
+      result.DrawBuffer.Indices[j + 4] = 4 * k + 2;
+      result.DrawBuffer.Indices[j + 5] = 4 * k + 3;
 
-        k++;
+      k++;
     }
-
 
     VertexBuffers glBinding;
     glBinding.VAO = srLoadVertexArray();
@@ -963,17 +983,16 @@ namespace sr {
     srEnableVertexAttribute(0);
     srSetVertexAttribute(0, 3, GL_FLOAT, GL_FALSE, sizeof(RenderBatch::Vertex), 0);
     srEnableVertexAttribute(1);
-    srSetVertexAttribute(1, 3, GL_FLOAT, GL_FALSE, sizeof(RenderBatch::Vertex), (const void*) offsetof(RenderBatch::Vertex, Normal));
+    srSetVertexAttribute(1, 3, GL_FLOAT, GL_FALSE, sizeof(RenderBatch::Vertex), (const void *)offsetof(RenderBatch::Vertex, Normal));
     srEnableVertexAttribute(2);
-    srSetVertexAttribute(2, 2, GL_FLOAT, GL_FALSE, sizeof(RenderBatch::Vertex), (const void*) offsetof(RenderBatch::Vertex, UV));
+    srSetVertexAttribute(2, 2, GL_FLOAT, GL_FALSE, sizeof(RenderBatch::Vertex), (const void *)offsetof(RenderBatch::Vertex, UV));
     srEnableVertexAttribute(3);
-    srSetVertexAttribute(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(RenderBatch::Vertex), (const void*) offsetof(RenderBatch::Vertex, Color));
-    glBinding.VBOs.push_back({
-                            {VertexArrayLayoutElement(EVertexAttributeType::FLOAT3, 0),
-                            VertexArrayLayoutElement(EVertexAttributeType::FLOAT3, 1),
-                            VertexArrayLayoutElement(EVertexAttributeType::FLOAT2, 2),
-                            VertexArrayLayoutElement(EVertexAttributeType::BYTE4, 3)}
-                            , vbo});
+    srSetVertexAttribute(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(RenderBatch::Vertex), (const void *)offsetof(RenderBatch::Vertex, Color));
+    glBinding.VBOs.push_back({{VertexArrayLayoutElement(EVertexAttributeType::FLOAT3, 0),
+                               VertexArrayLayoutElement(EVertexAttributeType::FLOAT3, 1),
+                               VertexArrayLayoutElement(EVertexAttributeType::FLOAT2, 2),
+                               VertexArrayLayoutElement(EVertexAttributeType::BYTE4, 3)},
+                              vbo});
 
     unsigned int ibo = srLoadElementBuffer(result.DrawBuffer.Indices, bufferSize * 6 * sizeof(unsigned int));
     glBinding.IBO = ibo;
@@ -984,7 +1003,7 @@ namespace sr {
     return result;
   }
 
-  R_API void srIncreaseRenderBatchCurrentDraw(RenderBatch* batch)
+  R_API void srIncreaseRenderBatchCurrentDraw(RenderBatch *batch)
   {
     if (batch->CurrentDraw++ >= SR_BATCH_DRAW_CALLS)
     {
@@ -995,7 +1014,7 @@ namespace sr {
   R_API bool srCheckRenderBatchLimit(unsigned int numVerts)
   {
     bool overflow = false;
-    RenderBatch& rb = SRC->RenderBatch;
+    RenderBatch &rb = SRC->RenderBatch;
 
     if (rb.VertexCounter + numVerts >= rb.DrawBuffer.ElementCount)
     {
@@ -1009,20 +1028,20 @@ namespace sr {
     return overflow;
   }
 
-  R_API void srDrawRenderBatch(RenderBatch* batch)
+  R_API void srDrawRenderBatch(RenderBatch *batch)
   {
     srSetDefaultShaderUniforms(SRC->DefaultShader);
 
     if (!srBindVertexArray(batch->DrawBuffer.GlBinding.VAO))
     {
-      for (const auto& buffer : batch->DrawBuffer.GlBinding.VBOs)
+      for (const auto &buffer : batch->DrawBuffer.GlBinding.VBOs)
       {
         srBindVertexBuffer(buffer.ID);
         unsigned int vertexSize = srGetVertexLayoutSize(buffer.Layout);
         unsigned int currentOffset = 0;
-        for (const VertexArrayLayoutElement& elem : buffer.Layout)
+        for (const VertexArrayLayoutElement &elem : buffer.Layout)
         {
-          srSetVertexAttribute(elem.Location, srGetVertexAttributeComponentCount(elem.ElementType), srGetGLVertexAttribType(elem.ElementType), elem.Normalized, vertexSize, (const void*) (unsigned long long) currentOffset);
+          srSetVertexAttribute(elem.Location, srGetVertexAttributeComponentCount(elem.ElementType), srGetGLVertexAttribType(elem.ElementType), elem.Normalized, vertexSize, (const void *)(unsigned long long)currentOffset);
           srEnableVertexAttribute(elem.Location);
           currentOffset += srGetVertexAttributeTypeSize(elem.ElementType);
         }
@@ -1036,19 +1055,28 @@ namespace sr {
     for (unsigned int i = 0, vertexOffset = 0; i <= batch->CurrentDraw; i++)
     {
       EBatchDrawMode mode = batch->DrawCalls[i].Mode;
-      
+
       srShaderSetUniform1b(SRC->DefaultShader, "UseTexture", batch->DrawCalls[i].Texture.ID > 0);
 
       glCall(glActiveTexture(GL_TEXTURE0));
       srBindTexture(batch->DrawCalls[i].Texture);
-      
+
       switch (mode)
       {
-      case EBatchDrawMode::POINTS:    glCall(glDrawArrays(GL_POINTS, vertexOffset, batch->DrawCalls[i].VertexCount)); break;
-      case EBatchDrawMode::LINES:     glCall(glDrawArrays(GL_LINES, vertexOffset, batch->DrawCalls[i].VertexCount)); break;
-      case EBatchDrawMode::TRIANGLES: glCall(glDrawArrays(GL_TRIANGLES, vertexOffset, batch->DrawCalls[i].VertexCount)); break;
-      case EBatchDrawMode::QUADS:     glCall(glDrawElements(GL_TRIANGLES, batch->DrawCalls[i].VertexCount/4*6, GL_UNSIGNED_INT, (GLvoid*) (vertexOffset / 4 * 6 * sizeof(unsigned int)))); break;
-      case EBatchDrawMode::UNKNOWN:   break;
+      case EBatchDrawMode::POINTS:
+        glCall(glDrawArrays(GL_POINTS, vertexOffset, batch->DrawCalls[i].VertexCount));
+        break;
+      case EBatchDrawMode::LINES:
+        glCall(glDrawArrays(GL_LINES, vertexOffset, batch->DrawCalls[i].VertexCount));
+        break;
+      case EBatchDrawMode::TRIANGLES:
+        glCall(glDrawArrays(GL_TRIANGLES, vertexOffset, batch->DrawCalls[i].VertexCount));
+        break;
+      case EBatchDrawMode::QUADS:
+        glCall(glDrawElements(GL_TRIANGLES, batch->DrawCalls[i].VertexCount / 4 * 6, GL_UNSIGNED_INT, (GLvoid *)(vertexOffset / 4 * 6 * sizeof(unsigned int))));
+        break;
+      case EBatchDrawMode::UNKNOWN:
+        break;
       }
       srBindTexture({});
       vertexOffset += batch->DrawCalls[i].VertexCount + batch->DrawCalls[i].VertexAlignment;
@@ -1059,18 +1087,17 @@ namespace sr {
     batch->VertexCounter = 0;
   }
 
-
-
   R_API void srBegin(EBatchDrawMode mode)
   {
-    RenderBatch& rb = SRC->RenderBatch;
+    RenderBatch &rb = SRC->RenderBatch;
     if (rb.DrawCalls[rb.CurrentDraw].Mode != mode)
     {
-      if (rb.DrawCalls[rb.CurrentDraw].Mode == EBatchDrawMode::LINES || rb.DrawCalls[rb.CurrentDraw].Mode == EBatchDrawMode::POINTS) 
+      if (rb.DrawCalls[rb.CurrentDraw].Mode == EBatchDrawMode::LINES || rb.DrawCalls[rb.CurrentDraw].Mode == EBatchDrawMode::POINTS)
         rb.DrawCalls[rb.CurrentDraw].VertexAlignment = rb.DrawCalls[rb.CurrentDraw].VertexCount % 4;
       else if (rb.DrawCalls[rb.CurrentDraw].Mode == EBatchDrawMode::TRIANGLES)
         rb.DrawCalls[rb.CurrentDraw].VertexAlignment = 4 - (rb.DrawCalls[rb.CurrentDraw].VertexCount % 4);
-      else rb.DrawCalls[rb.CurrentDraw].VertexAlignment = 0;
+      else
+        rb.DrawCalls[rb.CurrentDraw].VertexAlignment = 0;
 
       rb.VertexCounter += rb.DrawCalls[rb.CurrentDraw].VertexAlignment; // Offset vertex counter so it is all nice
 
@@ -1091,7 +1118,7 @@ namespace sr {
     srVertex3f({x, y, z});
   }
 
-  R_API void srVertex3f(const glm::vec3& vertex)
+  R_API void srVertex3f(const glm::vec3 &vertex)
   {
     srCheckRenderBatchLimit(1);
 
@@ -1099,7 +1126,6 @@ namespace sr {
     SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter].UV = SRC->RenderBatch.CurrentTexCoord;
     SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter].Normal = SRC->RenderBatch.CurrentNormal;
     SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter].Color = SRC->RenderBatch.CurrentColor;
-
 
     SRC->RenderBatch.VertexCounter++;
     SRC->RenderBatch.DrawCalls[SRC->RenderBatch.CurrentDraw].VertexCount++;
@@ -1110,7 +1136,7 @@ namespace sr {
     srVertex3f(glm::vec3(x, y, SRC->RenderBatch.CurrentDepth));
   }
 
-  R_API void srVertex2f(const glm::vec2& vertex)
+  R_API void srVertex2f(const glm::vec2 &vertex)
   {
     srVertex3f(glm::vec3(vertex.x, vertex.y, SRC->RenderBatch.CurrentDepth));
   }
@@ -1120,7 +1146,7 @@ namespace sr {
     srColor4f(r, g, b, 1.0f);
   }
 
-  R_API void srColor3f(const glm::vec3& color)
+  R_API void srColor3f(const glm::vec3 &color)
   {
     srColor4f({color.x, color.y, color.z, 1.0f});
   }
@@ -1130,7 +1156,7 @@ namespace sr {
     SRC->RenderBatch.CurrentColor = srGetColorFromFloat(r, g, b, a);
   }
 
-  R_API void srColor4f(const glm::vec4& color)
+  R_API void srColor4f(const glm::vec4 &color)
   {
     SRC->RenderBatch.CurrentColor = srGetColorFromFloat(color);
   }
@@ -1145,7 +1171,7 @@ namespace sr {
     SRC->RenderBatch.CurrentTexCoord = {u, v};
   }
 
-  R_API void srTextureCoord2f(const glm::vec2& uv)
+  R_API void srTextureCoord2f(const glm::vec2 &uv)
   {
     SRC->RenderBatch.CurrentTexCoord = uv;
   }
@@ -1168,7 +1194,7 @@ namespace sr {
     SRC->RenderBatch.CurrentDepth -= 0.0001f;
   }
 
-  R_API void srDrawRectanglePro(const glm::vec2& position, const Rectangle& rect, float rotation, float cornerRadius, PathType pathType, PathStyle style)
+  R_API void srDrawRectanglePro(const glm::vec2 &position, const Rectangle &rect, float rotation, float cornerRadius, PathType pathType, PathStyle style)
   {
     RectangleCorners corners = srGetRotatedRectangle(rect, rotation);
     corners += position;
@@ -1179,19 +1205,19 @@ namespace sr {
       srPathSetStyle(style);
       if (cornerRadius > 0.0f)
       {
-          float sin = rotation != 0 ? sinf(rotation * DEG2RAD) : 0;
-          float cos = rotation != 0 ? cosf(rotation * DEG2RAD) : 1;
+        float sin = rotation != 0 ? sinf(rotation * DEG2RAD) : 0;
+        float cos = rotation != 0 ? cosf(rotation * DEG2RAD) : 1;
 
-          // Start with top left (right of arc) corner
-          cornerRadius = srClamp(cornerRadius, 0.0f, 1.0f);
-          const float min_size = (srMin(rect.Width, rect.Height) / 2.0f) * cornerRadius;
-          const glm::vec2 arcCenterX = glm::vec2(min_size * cos, min_size * sin);
-          const glm::vec2 arcCenterY = glm::vec2(min_size * -sin, min_size * cos);
+        // Start with top left (right of arc) corner
+        cornerRadius = srClamp(cornerRadius, 0.0f, 1.0f);
+        const float min_size = (srMin(rect.Width, rect.Height) / 2.0f) * cornerRadius;
+        const glm::vec2 arcCenterX = glm::vec2(min_size * cos, min_size * sin);
+        const glm::vec2 arcCenterY = glm::vec2(min_size * -sin, min_size * cos);
 
-          srPathArc(corners.TopLeft + arcCenterX - arcCenterY, -90.0f - rotation, -rotation, min_size);
-          srPathArc(corners.TopRight - arcCenterX - arcCenterY, 0.0f - rotation, 90.0f - rotation, min_size);
-          srPathArc(corners.BottomRight -arcCenterX + arcCenterY, 90.0f - rotation, 180.0f - rotation, min_size);
-          srPathArc(corners.BottomLeft + arcCenterX + arcCenterY, 180.0f - rotation, 270.0f - rotation, min_size);
+        srPathArc(corners.TopLeft + arcCenterX - arcCenterY, -90.0f - rotation, -rotation, min_size);
+        srPathArc(corners.TopRight - arcCenterX - arcCenterY, 0.0f - rotation, 90.0f - rotation, min_size);
+        srPathArc(corners.BottomRight - arcCenterX + arcCenterY, 90.0f - rotation, 180.0f - rotation, min_size);
+        srPathArc(corners.BottomLeft + arcCenterX + arcCenterY, 180.0f - rotation, 270.0f - rotation, min_size);
       }
       else
       {
@@ -1216,7 +1242,7 @@ namespace sr {
     }
   }
 
-  R_API void srDrawTexturePro(Texture texture, const glm::vec2& position, const Rectangle& rect, float rotation)
+  R_API void srDrawTexturePro(Texture texture, const glm::vec2 &position, const Rectangle &rect, float rotation)
   {
     RectangleCorners corners = srGetRotatedRectangle(rect, rotation) + position;
 
@@ -1237,7 +1263,7 @@ namespace sr {
     sr::srEnd();
   }
 
-  R_API void srDrawGrid(const glm::vec2& position, unsigned int columns, unsigned int rows, float cellSizeX, float cellSizeY)
+  R_API void srDrawGrid(const glm::vec2 &position, unsigned int columns, unsigned int rows, float cellSizeX, float cellSizeY)
   {
     srBegin(EBatchDrawMode::LINES);
     for (unsigned int y = 0; y < rows; y++)
@@ -1253,8 +1279,7 @@ namespace sr {
     srEnd();
   }
 
-
-  R_API Font srLoadFont(const char* filePath, float size)
+  R_API Font srLoadFont(const char *filePath, float size)
   {
     Font result{};
     result.Size = size;
@@ -1269,14 +1294,13 @@ namespace sr {
       return result;
     }
 
-
     // Load first 128 chars
-    static const char* text = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    static const char *text = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
     for (char c = 0; c < strlen(text); c++)
     {
       texture_font_get_glyph(result.Font, text + c);
     }
-    
+
     Texture fontTexture = srLoadTexture(FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, TextureFormat_R8);
     srTextureSetData(fontTexture, FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, TextureFormat_R8, result.Atlas->data);
     result.Atlas->id = fontTexture.ID;
@@ -1284,7 +1308,7 @@ namespace sr {
     return result;
   }
 
-  R_API void srUnloadFont(Font* font)
+  R_API void srUnloadFont(Font *font)
   {
     if (font->Atlas)
     {
@@ -1300,12 +1324,12 @@ namespace sr {
 
   /**
    * @brief Finds texture glyph and loads it if not found in the atlas
-   * 
-   * @return texture_glyph_t* 
+   *
+   * @return texture_glyph_t*
    */
-  static texture_glyph_t* srFontGetGlyph(texture_font_t* font, const char* codepoint)
+  static texture_glyph_t *srFontGetGlyph(texture_font_t *font, const char *codepoint)
   {
-    texture_glyph_t* result = texture_font_find_glyph(font, codepoint);
+    texture_glyph_t *result = texture_font_find_glyph(font, codepoint);
     if (!result)
     {
       if (texture_font_load_glyph(font, codepoint) == 1)
@@ -1319,7 +1343,7 @@ namespace sr {
     return result;
   }
 
-  R_API void srDrawText(Font font, const char* text, const glm::vec2& position, Color color, bool fillRects)
+  R_API void srDrawText(Font font, const char *text, const glm::vec2 &position, Color color, bool fillRects)
   {
     const size_t textLen = strlen(text);
 
@@ -1342,7 +1366,7 @@ namespace sr {
         pos.y = pos.y - font.Size;
         continue;
       }
-      texture_glyph_t* glyph = srFontGetGlyph(font.Font, text + i);
+      texture_glyph_t *glyph = srFontGetGlyph(font.Font, text + i);
       if (glyph)
       {
         if (i > 0)
@@ -1380,13 +1404,12 @@ namespace sr {
     srEnd();
   }
 
-
-  R_API void srDrawCircle(const glm::vec2& center, float radius, Color color, unsigned int segmentCount)
+  R_API void srDrawCircle(const glm::vec2 &center, float radius, Color color, unsigned int segmentCount)
   {
     srDrawArc(center, 0.0f, 360.0f, radius, color, segmentCount);
   }
 
-  R_API void srDrawArc(const glm::vec2& center, float startAngle, float endAngle, float radius, Color color, unsigned int segmentCount)
+  R_API void srDrawArc(const glm::vec2 &center, float startAngle, float endAngle, float radius, Color color, unsigned int segmentCount)
   {
     srCheckRenderBatchLimit((segmentCount + 1) * 3);
 
@@ -1405,7 +1428,7 @@ namespace sr {
     for (unsigned int i = 0; i <= segmentCount; i++)
     {
       glm::vec2 currentPosition(radius * sinf(currentAngle), radius * cosf(currentAngle));
-      
+
       srVertex2f(center);
       srVertex2f(center + lastPosition);
       srVertex2f(center + currentPosition);
@@ -1417,10 +1440,8 @@ namespace sr {
     srEnd();
   }
 
-  
-
   // Path builder
-  
+
   R_API void srBeginPath(PathType type)
   {
     SRC->RenderBatch.Path.Styles.clear();
@@ -1430,7 +1451,8 @@ namespace sr {
 
   R_API void srEndPath(bool closedPath)
   {
-    if (SRC->RenderBatch.Path.Points.size() == 0) return;
+    if (SRC->RenderBatch.Path.Points.size() == 0)
+      return;
 
     /*if (closedPath && glm::length(SRC->RenderBatch.Path.Points.back() - SRC->RenderBatch.Path.Points[0]) < 0.1f)
     {
@@ -1460,7 +1482,7 @@ namespace sr {
     srEndPath();
   }
 
-  R_API void srPathLineTo(const glm::vec2& position)
+  R_API void srPathLineTo(const glm::vec2 &position)
   {
     if (SRC->RenderBatch.Path.Points.size() == 0 || glm::length(SRC->RenderBatch.Path.Points.back() - position) > 0.1f)
     {
@@ -1468,7 +1490,7 @@ namespace sr {
     SRC->RenderBatch.Path.Points.push_back(position);
   }
 
-  R_API void srPathArc(const glm::vec2& center, float startAngle, float endAngle, float radius, unsigned int segmentCount)
+  R_API void srPathArc(const glm::vec2 &center, float startAngle, float endAngle, float radius, unsigned int segmentCount)
   {
     // Use angle in radiens. Comes in as deg
     startAngle = (startAngle * DEG2RAD);
@@ -1481,13 +1503,13 @@ namespace sr {
     for (unsigned int i = 0; i <= segmentCount; i++)
     {
       glm::vec2 currentPosition(radius * sinf(currentAngle), radius * cosf(currentAngle));
-      
+
       srPathLineTo(center + currentPosition);
       currentAngle += degIncrease;
     }
   }
 
-  R_API void srPathRectangle(const Rectangle& rect, const glm::vec2& origin, float rotation, float cornerRadius)
+  R_API void srPathRectangle(const Rectangle &rect, const glm::vec2 &origin, float rotation, float cornerRadius)
   {
     // We want fresh path, so nothing connects to the previus
     /*srEndPath();
@@ -1499,7 +1521,7 @@ namespace sr {
     glm::vec2 bottomRight;
       // Draw rect with simple corners
 
-    
+
 
     float sin = rotation != 0 ? sinf(rotation*DEG2RAD) : 0;
     float cos = rotation != 0 ? cosf(rotation*DEG2RAD) : 1;
@@ -1512,7 +1534,7 @@ namespace sr {
       bottomLeft = glm::vec2(x, y);
       bottomRight = glm::vec2(x + rect.Width, y);
     }
-    else 
+    else
     {
 
       float x = rect.X;
@@ -1560,59 +1582,61 @@ namespace sr {
 
   R_API void srPathSetStrokeEnabled(bool showStroke)
   {
-    if (showStroke) SRC->RenderBatch.Path.RenderType |= PathType_Stroke;
-    else SRC->RenderBatch.Path.RenderType &= ~PathType_Stroke;
+    if (showStroke)
+      SRC->RenderBatch.Path.RenderType |= PathType_Stroke;
+    else
+      SRC->RenderBatch.Path.RenderType &= ~PathType_Stroke;
   }
 
   R_API void srPathSetFillEnabled(bool fill)
   {
-    if (fill) SRC->RenderBatch.Path.RenderType |= PathType_Fill;
-    else SRC->RenderBatch.Path.RenderType &= ~PathType_Fill;
+    if (fill)
+      SRC->RenderBatch.Path.RenderType |= PathType_Fill;
+    else
+      SRC->RenderBatch.Path.RenderType &= ~PathType_Fill;
   }
 
   R_API void srPathSetFillColor(Color color)
   {
-    PathBuilder::PathStyleIndex& styleIndex = srPathBuilderNewStyle();
+    PathBuilder::PathStyleIndex &styleIndex = srPathBuilderNewStyle();
     styleIndex.second.FillColor = color;
     SRC->RenderBatch.Path.CurrentPathStyle.FillColor = color;
   }
 
-  R_API void srPathSetFillColor(const glm::vec4& color)
+  R_API void srPathSetFillColor(const glm::vec4 &color)
   {
     srPathSetFillColor(srGetColorFromFloat(color));
   }
 
   R_API void srPathSetStrokeColor(Color color)
   {
-    PathBuilder::PathStyleIndex& styleIndex = srPathBuilderNewStyle();
+    PathBuilder::PathStyleIndex &styleIndex = srPathBuilderNewStyle();
     styleIndex.second.StrokeColor = color;
     SRC->RenderBatch.Path.CurrentPathStyle.StrokeColor = color;
   }
 
-  R_API void srPathSetStrokeColor(const glm::vec4& color)
+  R_API void srPathSetStrokeColor(const glm::vec4 &color)
   {
     srPathSetStrokeColor(srGetColorFromFloat(color));
   }
 
-
-
   R_API void srPathSetStrokeWidth(float width)
   {
-    PathBuilder::PathStyleIndex& styleIndex = srPathBuilderNewStyle();
+    PathBuilder::PathStyleIndex &styleIndex = srPathBuilderNewStyle();
     styleIndex.second.StrokeWidth = width;
     SRC->RenderBatch.Path.CurrentPathStyle.StrokeWidth = width;
   }
 
-  R_API void srPathSetStyle(const PathStyle& style)
+  R_API void srPathSetStyle(const PathStyle &style)
   {
-    PathBuilder::PathStyleIndex& styleIndex = srPathBuilderNewStyle();
+    PathBuilder::PathStyleIndex &styleIndex = srPathBuilderNewStyle();
     styleIndex.second = style;
     SRC->RenderBatch.Path.CurrentPathStyle = style;
   }
 
-  R_API PathBuilder::PathStyleIndex& srPathBuilderNewStyle()
+  R_API PathBuilder::PathStyleIndex &srPathBuilderNewStyle()
   {
-    PathBuilder& pb = SRC->RenderBatch.Path;
+    PathBuilder &pb = SRC->RenderBatch.Path;
 
     if (pb.Styles.size() == 0)
     {
@@ -1624,7 +1648,7 @@ namespace sr {
       return pb.Styles.back();
     }
 
-    PathBuilder::PathStyleIndex& lastStyle = pb.Styles.back();
+    PathBuilder::PathStyleIndex &lastStyle = pb.Styles.back();
 
     // We have no new points, we can just modify the current one
     if (pb.Points.size() - (pb.PreviousStyleVertexIndex + lastStyle.first) == 0)
@@ -1643,10 +1667,8 @@ namespace sr {
     return pb.Styles.back();
   }
 
-
-
   // Flushing path
-  R_API void srAddPolyline(const PathBuilder& pb, bool closedPath)
+  R_API void srAddPolyline(const PathBuilder &pb, bool closedPath)
   {
     const size_t count = pb.Points.size();
     srCheckRenderBatchLimit(count * 4);
@@ -1663,14 +1685,14 @@ namespace sr {
     srBegin(TRIANGLES);
     srColor1c(currentStyle.StrokeColor);
 
-    glm::vec2 lastTop {};
-    glm::vec2 lastBottom {};
+    glm::vec2 lastTop{};
+    glm::vec2 lastBottom{};
 
     for (size_t i1 = 0; i1 < count + (closedPath ? 1 : 0); i1++)
     {
-      const glm::vec2& currentPoint = pb.Points[i1 % count];
-      const glm::vec2& previousPoint = pb.Points[i1 == 0 ? (closedPath ? pb.Points.size() - 1 : 0) : (i1 - 1)];
-      const glm::vec2& nextPoint = pb.Points[(i1 + 1) % count];
+      const glm::vec2 &currentPoint = pb.Points[i1 % count];
+      const glm::vec2 &previousPoint = pb.Points[i1 == 0 ? (closedPath ? pb.Points.size() - 1 : 0) : (i1 - 1)];
+      const glm::vec2 &nextPoint = pb.Points[(i1 + 1) % count];
 
       const float prevLength = glm::length(currentPoint - previousPoint);
       const float nextLength = glm::length(nextPoint - currentPoint);
@@ -1684,10 +1706,6 @@ namespace sr {
 
       const glm::vec2 widthVector1 = normalWidthVector1 * currentStyle.StrokeWidth * 0.5f;
       const glm::vec2 widthVector2 = normalWidthVector2 * currentStyle.StrokeWidth * 0.5f;
-
-
-
-      
 
       glm::vec2 currentConnectedTop = currentPoint + widthVector1;
       glm::vec2 currentConnectedBottom = currentPoint - widthVector1;
@@ -1707,46 +1725,40 @@ namespace sr {
         // Check which point is pos and which negative
         const glm::vec2 center = cornerA + ((cornerB - cornerA) / 2.0f);
 
-
         const float connectionLength = glm::length(cornerB - cornerA);
         const float diagonalLength = glm::length(currentPoint - center);
 
         float a = ((connectionLength / 2.0f) / diagonalLength) * (currentStyle.StrokeWidth / 2.0f);
-        //SR_TRACE("SF=%f, f=%f, a=%f", connectionLength, diagonalLength, a);
+        // SR_TRACE("SF=%f, f=%f, a=%f", connectionLength, diagonalLength, a);
         float a_clamp = srMin(prevLength, nextLength);
         a = srClamp(a, -a_clamp, a_clamp);
 
         float dot = glm::dot(dir1, normalWidthVector2);
-        float funny = dot/srAbs(dot);
-        if (funny == 0)  funny = 1;
+        float funny = dot / srAbs(dot);
+        if (funny == 0)
+          funny = 1;
         currentConnectedTop += (dir1 * a) * funny;
         currentConnectedBottom -= (dir1 * a) * funny;
       }
-      
+
       if (i1 == 0)
       {
-        lastTop = currentConnectedTop; // We use widthVector2 because prev and current is the same point
+        lastTop = currentConnectedTop;       // We use widthVector2 because prev and current is the same point
         lastBottom = currentConnectedBottom; // We want the distance to the next point
         continue;
       }
 
       // Find connection point for good filling
 
-
-
-
       srVertex2f(lastBottom);
       srVertex2f(currentConnectedBottom);
       srVertex2f(currentConnectedTop);
-
-
 
       srVertex2f(currentConnectedTop);
       srVertex2f(lastTop);
       srVertex2f(lastBottom);
 
-      //SR_TRACE("Rendering QUAD index %d\nLT(%f, %f)\nCT(%f, %f)\nCB(%f, %f)\nLB(%f, %f)", i1, lastTop.x, lastTop.y, currentConnectedTop.x, currentConnectedTop.y, currentConnectedBottom.x, currentConnectedBottom.y, lastBottom.x, lastBottom.y);
-
+      // SR_TRACE("Rendering QUAD index %d\nLT(%f, %f)\nCT(%f, %f)\nCB(%f, %f)\nLB(%f, %f)", i1, lastTop.x, lastTop.y, currentConnectedTop.x, currentConnectedTop.y, currentConnectedBottom.x, currentConnectedBottom.y, lastBottom.x, lastBottom.y);
 
       lastBottom = currentConnectedBottom;
       lastTop = currentConnectedTop;
@@ -1763,23 +1775,17 @@ namespace sr {
       }
     }
     srEnd();
-
-    for (const glm::vec2& p : pb.Points)
-    {
-      srDrawCircle(p, 10.0f, 0xff000000, 18);
-    }
   }
 
-  R_API void srAddPolyFilled(const PathBuilder& pb)
+  R_API void srAddPolyFilled(const PathBuilder &pb)
   {
-    if (pb.Points.size() < 3) 
+    if (pb.Points.size() < 3)
     {
       SR_TRACE("Not enough points for fill");
       return;
     }
     const size_t count = pb.Points.size();
     srCheckRenderBatchLimit(count * 3);
-
 
     PathStyle currentStyle = pb.CurrentPathStyle;
     unsigned int nextStyleChange = 0;
@@ -1789,8 +1795,6 @@ namespace sr {
       currentStyle = pb.Styles[0].second;
       nextStyleChange = pb.Styles[0].first;
     }
-
-
 
     srBegin(TRIANGLES);
     srColor1c(currentStyle.FillColor);
@@ -1812,7 +1816,6 @@ namespace sr {
           srColor1c(currentStyle.FillColor);
         }
       }
-
     }
 
     srEnd();
