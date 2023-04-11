@@ -54,7 +54,35 @@ const char *basicMeshFragmentShader = R"(
   }
 )";
 
-static const unsigned int FONT_TEXTURE_SIZE = 1024;
+const char *distanceFieldFragmentShader = R"(
+    #version 330 core
+
+  layout(location = 0) out vec4 fragColor;
+
+  in vec4 Color;
+  in vec2 TexCoord;
+
+  uniform sampler2D Texture;
+
+
+  vec3 glyph_color    = vec3(0.0,0.0,0.0);
+  vec3 outline_color  = vec3(0.0,0.0,0.0);
+
+  const float glyph_center   = 0.50;
+  const float outline_center = 0.55;
+
+  void main() {
+    vec4 color = texture(Texture, TexCoord.st);
+    float dist  = color.r;
+    float width = fwidth(dist);
+    float alpha = smoothstep(glyph_center-width, glyph_center+width, dist);
+
+    fragColor = vec4(glyph_color, alpha);
+  }
+
+)";
+
+static const unsigned int FONT_TEXTURE_SIZE = 2048;
 static const unsigned int FONT_TEXTURE_DEPTH = 1;
 
 char const *gl_error_string(GLenum const err)
@@ -163,6 +191,10 @@ namespace sr
     if (context->DefaultShader.ID == 0)
     {
       SRC->DefaultShader = srLoadShader(basicMeshVertexShader, basicMeshFragmentShader);
+    }
+    if (context->DistanceFieldShader.ID == 0)
+    {
+      SRC->DistanceFieldShader = srLoadShader(basicMeshVertexShader, distanceFieldFragmentShader);
     }
     context->RenderBatch = srLoadRenderBatch(5000);
   }
@@ -408,10 +440,10 @@ namespace sr
     glCall(glUseProgram(shader.ID));
   }
 
-  R_API unsigned int srShaderGetUniformLocation(const char *name, Shader shader)
+  R_API unsigned int srShaderGetUniformLocation(const char *name, Shader shader, bool show_err)
   {
     unsigned int result = glCall(glGetUniformLocation(shader.ID, name));
-    if (result == -1)
+    if (result == -1 && show_err)
     {
       SR_TRACE("Could not find uniform location %s [ID %i]", name, shader.ID);
     }
@@ -469,7 +501,6 @@ namespace sr
 
     srShaderSetUniformMat4(shader, "ProjectionMatrix", SRC->CurrentProjection);
     srShaderSetUniform1i(shader, "Texture", 0);
-    // srShaderSetUniform1b(shader, "UseTexture", false);
   }
 
   R_API unsigned int srTextureFormatToGL(TextureFormat_ format)
@@ -493,10 +524,10 @@ namespace sr
     glCall(glGenTextures(1, &result.ID));
     glCall(glBindTexture(GL_TEXTURE_2D, result.ID));
 
-    glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT));
-    glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT));
-    glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
-    glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
+    glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER));
+    glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER));
+    glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
+    glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
 
     glCall(glBindTexture(GL_TEXTURE_2D, 0));
 
@@ -568,6 +599,8 @@ namespace sr
     GLint swizzleMask[] = {GL_RED, GL_RED, GL_RED, GL_RED};
     glCall(glTexParameteriv(GL_TEXTURE_2D, GL_TEXTURE_SWIZZLE_RGBA, swizzleMask));
 
+    glCall(glPixelStorei(GL_UNPACK_ALIGNMENT, 1));
+
     glCall(glTexImage2D(GL_TEXTURE_2D, 0, srTextureFormatToGL(format), width, height, 0, srTextureFormatToGL(format), GL_UNSIGNED_BYTE, data));
     glCall(glGenerateMipmap(GL_TEXTURE_2D));
 
@@ -593,6 +626,18 @@ namespace sr
     }
 
     delete[] buffer;
+  }
+
+  R_API void srPushMaterial(const Material &mat)
+  {
+    Texture currentDrawTexture = SRC->RenderBatch.DrawCalls[SRC->RenderBatch.CurrentDraw].Material.Texture;
+    if (currentDrawTexture.ID != 0 && currentDrawTexture.ID != mat.Texture.ID)
+    {
+      // We push a texture where we already have one
+      // We override the last pushed for now. This should not happen
+      // We warn here for now
+    }
+    SRC->RenderBatch.DrawCalls[SRC->RenderBatch.CurrentDraw].Material = mat;
   }
 
   // Vertex Arrays
@@ -1030,8 +1075,6 @@ namespace sr
 
   R_API void srDrawRenderBatch(RenderBatch *batch)
   {
-    srSetDefaultShaderUniforms(SRC->DefaultShader);
-
     if (!srBindVertexArray(batch->DrawBuffer.GlBinding.VAO))
     {
       for (const auto &buffer : batch->DrawBuffer.GlBinding.VBOs)
@@ -1054,32 +1097,42 @@ namespace sr
     // Draw everything to current draw
     for (unsigned int i = 0, vertexOffset = 0; i <= batch->CurrentDraw; i++)
     {
-      EBatchDrawMode mode = batch->DrawCalls[i].Mode;
+      RenderBatch::DrawCall &drawCall = batch->DrawCalls[i];
+      Shader shader = SRC->DefaultShader;
+      if (drawCall.Material.Shader.ID != 0)
+      {
+        shader = drawCall.Material.Shader;
+      }
 
-      srShaderSetUniform1b(SRC->DefaultShader, "UseTexture", batch->DrawCalls[i].Texture.ID > 0);
+      srSetDefaultShaderUniforms(shader);
+      if (srShaderGetUniformLocation("UseTexture", shader, false) != -1)
+      {
+        srShaderSetUniform1b(shader, "UseTexture", drawCall.Material.Texture.ID > 0);
+      }
 
       glCall(glActiveTexture(GL_TEXTURE0));
-      srBindTexture(batch->DrawCalls[i].Texture);
+      srBindTexture(drawCall.Material.Texture);
 
+      EBatchDrawMode mode = drawCall.Mode;
       switch (mode)
       {
       case EBatchDrawMode::POINTS:
-        glCall(glDrawArrays(GL_POINTS, vertexOffset, batch->DrawCalls[i].VertexCount));
+        glCall(glDrawArrays(GL_POINTS, vertexOffset, drawCall.VertexCount));
         break;
       case EBatchDrawMode::LINES:
-        glCall(glDrawArrays(GL_LINES, vertexOffset, batch->DrawCalls[i].VertexCount));
+        glCall(glDrawArrays(GL_LINES, vertexOffset, drawCall.VertexCount));
         break;
       case EBatchDrawMode::TRIANGLES:
-        glCall(glDrawArrays(GL_TRIANGLES, vertexOffset, batch->DrawCalls[i].VertexCount));
+        glCall(glDrawArrays(GL_TRIANGLES, vertexOffset, drawCall.VertexCount));
         break;
       case EBatchDrawMode::QUADS:
-        glCall(glDrawElements(GL_TRIANGLES, batch->DrawCalls[i].VertexCount / 4 * 6, GL_UNSIGNED_INT, (GLvoid *)(vertexOffset / 4 * 6 * sizeof(unsigned int))));
+        glCall(glDrawElements(GL_TRIANGLES, drawCall.VertexCount / 4 * 6, GL_UNSIGNED_INT, (GLvoid *)(vertexOffset / 4 * 6 * sizeof(unsigned int))));
         break;
       case EBatchDrawMode::UNKNOWN:
         break;
       }
       srBindTexture({});
-      vertexOffset += batch->DrawCalls[i].VertexCount + batch->DrawCalls[i].VertexAlignment;
+      vertexOffset += drawCall.VertexCount + drawCall.VertexAlignment;
     }
 
     batch->CurrentDraw = 0;
@@ -1105,7 +1158,7 @@ namespace sr
       rb.DrawCalls[rb.CurrentDraw].Mode = mode;
       rb.DrawCalls[rb.CurrentDraw].VertexCount = 0;
       rb.DrawCalls[rb.CurrentDraw].VertexAlignment = 0;
-      rb.DrawCalls[rb.CurrentDraw].Texture = {0};
+      rb.DrawCalls[rb.CurrentDraw].Material = {0};
 
       rb.CurrentColor = 0xffffffff;
       rb.CurrentNormal = glm::vec3(0.0f, 0.0f, -1.0f);
@@ -1176,19 +1229,6 @@ namespace sr
     SRC->RenderBatch.CurrentTexCoord = uv;
   }
 
-  R_API void srPushTexture(Texture tex)
-  {
-
-    Texture currentDrawTexture = SRC->RenderBatch.DrawCalls[SRC->RenderBatch.CurrentDraw].Texture;
-    if (currentDrawTexture.ID != 0 && currentDrawTexture.ID != tex.ID)
-    {
-      // We push a texture where we already have one
-      // We override the last pushed for now. This should not happen
-      // We warn here for now
-    }
-    SRC->RenderBatch.DrawCalls[SRC->RenderBatch.CurrentDraw].Texture = tex;
-  }
-
   R_API void srEnd()
   {
     SRC->RenderBatch.CurrentDepth -= 0.0001f;
@@ -1247,7 +1287,7 @@ namespace sr
     RectangleCorners corners = srGetRotatedRectangle(rect, rotation) + position;
 
     sr::srBegin(EBatchDrawMode::QUADS);
-    srPushTexture(texture);
+    srPushMaterial({texture, SRC->DefaultShader});
 
     srTextureCoord2f(0.0f, 0.0f);
     srVertex2f(corners.TopLeft);
@@ -1301,8 +1341,8 @@ namespace sr
       texture_font_get_glyph(result.Font, text + c);
     }
 
-    Texture fontTexture = srLoadTexture(FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, TextureFormat_R8);
-    srTextureSetData(fontTexture, FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, TextureFormat_R8, result.Atlas->data);
+    Texture fontTexture = srLoadTexture(FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, FONT_TEXTURE_DEPTH == 1 ? TextureFormat_R8 : TextureFormat_RGB8);
+    srTextureSetData(fontTexture, FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, FONT_TEXTURE_DEPTH == 1 ? TextureFormat_R8 : TextureFormat_RGB8, result.Atlas->data);
     result.Atlas->id = fontTexture.ID;
 
     return result;
@@ -1337,7 +1377,7 @@ namespace sr
         result = texture_font_find_glyph(font, codepoint);
         Texture tex;
         tex.ID = font->atlas->id;
-        srTextureSetData(tex, 1024, 1024, FONT_TEXTURE_DEPTH == 1 ? TextureFormat_R8 : TextureFormat_RGB8, font->atlas->data);
+        srTextureSetData(tex, FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, FONT_TEXTURE_DEPTH == 1 ? TextureFormat_R8 : TextureFormat_RGB8, font->atlas->data);
       }
     }
     return result;
@@ -1351,7 +1391,7 @@ namespace sr
     srColor1c(color);
     if (!fillRects)
     {
-      srPushTexture({font.Atlas->id});
+      srPushMaterial({{font.Atlas->id}, SRC->DistanceFieldShader});
     }
 
     float currentDepth = SRC->RenderBatch.CurrentDepth;

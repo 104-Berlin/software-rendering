@@ -14,7 +14,7 @@ static std::vector<glm::vec2> EditPath;
 static int EditGrabIndex = -1;
 static bool ControllPressed = false;
 
-void drawVector(const glm::vec2& vector, const glm::vec2& offset = glm::vec2(0.0f))
+void drawVector(const glm::vec2 &vector, const glm::vec2 &offset = glm::vec2(0.0f))
 {
     sr::srColor4f(0.3f, 0.3f, 0.3f, 1.0f);
     sr::srVertex2f(offset);
@@ -76,18 +76,17 @@ void mousePositionCallback(GLFWwindow* window, double xpos, double ypos)
 
 int main()
 {
-    SR_TRACE("19 mod 9 = %d",   19 % 9);
-    SR_TRACE("19 mod 4 = %d",   19 % 4);
-    SR_TRACE("19 mod 2 = %d",  19 % 2);
-    SR_TRACE("19 mod 5 = %d",  19 % 5);
-    SR_TRACE("19 mod 8 = %d",   19 % 8);
+    SR_TRACE("19 mod 9 = %d", 19 % 9);
+    SR_TRACE("19 mod 4 = %d", 19 % 4);
+    SR_TRACE("19 mod 2 = %d", 19 % 2);
+    SR_TRACE("19 mod 5 = %d", 19 % 5);
+    SR_TRACE("19 mod 8 = %d", 19 % 8);
 
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0)
     {
         printf("Error: %s\n", SDL_GetError());
         return -1;
     }
-
 
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG); // Always required on Mac
     SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
@@ -99,19 +98,16 @@ int main()
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
 
     SDL_WindowFlags window_flags = (SDL_WindowFlags)(SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
-    SDL_Window* window = SDL_CreateWindow("Software Rendering", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
+    SDL_Window *window = SDL_CreateWindow("Software Rendering", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1280, 720, window_flags);
     SDL_GLContext gl_context = SDL_GL_CreateContext(window);
     SDL_GL_MakeCurrent(window, gl_context);
     SDL_GL_SetSwapInterval(1);
     sr::srLoad((sr::SRLoadProc)SDL_GL_GetProcAddress);
 
-
-
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
+    ImGuiIO &io = ImGui::GetIO();
     ImGui::StyleColorsDark();
-
 
     ImGui_ImplSDL2_InitForOpenGL(window, gl_context);
     ImGui_ImplOpenGL3_Init();
@@ -119,25 +115,22 @@ int main()
     sr::MeshInit initData;
     initData.Vertices = {
         {-0.5f, -0.5f, 0.0f},
-        { 0.0f,  0.5f, 0.0f},
-        { 0.5f, -0.5f, 0.0f}
-    };
+        {0.0f, 0.5f, 0.0f},
+        {0.5f, -0.5f, 0.0f}};
     initData.Colors = {
         0xffff00ff,
         0xffff00ff,
-        0xffff00ff
-    };
+        0xffff00ff};
     initData.Indices = {
-        0, 1, 2
-    };
+        0, 1, 2};
 
     sr::Mesh mesh = sr::srLoadMesh(initData);
 
     // 4 * 4 big texture
-    uint32_t data[] =      {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
-                            0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
-                            0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
-                            0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff};
+    uint32_t data[] = {0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
+                       0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
+                       0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff,
+                       0xffffffff, 0xffffffff, 0xffffffff, 0xffffffff};
 
     /*sr::Texture texture = sr::srLoadTexture(4, 4, sr::TextureFormat_RGBA8);
     sr::srTextureSetData(texture, 4, 4, sr::TextureFormat_RGBA8, (unsigned char*)data);
@@ -176,7 +169,6 @@ int main()
             if (event.type == SDL_WINDOWEVENT && event.window.event == SDL_WINDOWEVENT_CLOSE && event.window.windowID == SDL_GetWindowID(window))
                 done = true;
         }
-        
 
         // ImGui
         ImGui_ImplOpenGL3_NewFrame();
@@ -193,7 +185,6 @@ int main()
         ImGui::Separator();
 
         ImGui::Checkbox("Draw Grid", &drawGrid);
-
         ImGui::Separator();
 
         ImGui::Checkbox("Draw Rect", &drawRect);
@@ -211,21 +202,19 @@ int main()
         ImGui::SliderInt("Arc segments", &numArcSegments, 5, 75);
 
         ImGui::Text("Current Angle %f", displayAngle);
-        ImGui::End();   
+        ImGui::End();
 
         ImGui::Render();
-
 
         // SR Rendering
         sr::srNewFrame(frameWidth, frameHeight);
 
-        const glm::vec2& halfRectSize = rectSize / 2.0f;
+        const glm::vec2 &halfRectSize = rectSize / 2.0f;
 
-       
         sr::srBeginPath(sr::PathType_Stroke);
         sr::srPathSetStrokeWidth(lineWidth);
         sr::srPathSetStrokeColor(currentMeshColor);
-        for (const glm::vec2& point : EditPath)
+        for (const glm::vec2 &point : EditPath)
         {
             sr::srPathLineTo(point);
         }
@@ -240,22 +229,20 @@ int main()
         {
             sr::srDrawGrid({0.0f, 0.0f}, 10, 10, 100, 100);
         }
-        //sr::srDrawText(font, "0, 0", {0.0f, 0.0f});
+        // sr::srDrawText(font, "0, 0", {0.0f, 0.0f});
 
+        // sr::srDrawText(font, "Wer das liest ist doof\nasdgfHüöo", glm::vec2(0.0f, 0.0f), sr::srGetColorFromFloat(currentLineColor), drawLines);
 
-        //sr::srDrawText(font, "Wer das liest ist doof\nasdgfHüöo", glm::vec2(0.0f, 0.0f), sr::srGetColorFromFloat(currentLineColor), drawLines);
+        // sr::srDrawRectangle(sr::Rectangle{0.0f, 0.0f, 1.0f, 1.0f}, glm::vec2{0.5f, 0.5f}, rectRotation, sr::srGetColorFromFloat(currentColor.x, currentColor.y, currentColor.z, currentColor.w));
 
-        //sr::srDrawRectangle(sr::Rectangle{0.0f, 0.0f, 1.0f, 1.0f}, glm::vec2{0.5f, 0.5f}, rectRotation, sr::srGetColorFromFloat(currentColor.x, currentColor.y, currentColor.z, currentColor.w));
+        // sr::srDrawCircle(glm::vec2(0.0f, 0.0f), 0.2f, sr::srGetColorFromFloat(currentColor));
 
-        //sr::srDrawCircle(glm::vec2(0.0f, 0.0f), 0.2f, sr::srGetColorFromFloat(currentColor));
-
-        //sr::srPathSetStrokeEnabled(false);        
-        //sr::srPathSetFillEnabled(true);
-//
-        //sr::srPathSetStrokeColor(currentLineColor);
-        //sr::srPathSetFillColor(currentMeshColor);
-        //sr::srPathRectangle({0.0f, 0.0f, rectSize.x, rectSize.y}, rectSize / 2.0f, 0.0f, 0.0f);
-
+        // sr::srPathSetStrokeEnabled(false);
+        // sr::srPathSetFillEnabled(true);
+        //
+        // sr::srPathSetStrokeColor(currentLineColor);
+        // sr::srPathSetFillColor(currentMeshColor);
+        // sr::srPathRectangle({0.0f, 0.0f, rectSize.x, rectSize.y}, rectSize / 2.0f, 0.0f, 0.0f);
 
         if (drawRect)
         {
@@ -268,12 +255,10 @@ int main()
             sr::srBeginPath(sr::PathType_Stroke);
             sr::srPathSetStrokeWidth(400.0f);
             sr::srPathSetStrokeColor(currentLineColor);
-            //sr::srPathArc(glm::vec2(), 0.0f, 90.0f, 250, numArcSegments);
+            // sr::srPathArc(glm::vec2(), 0.0f, 90.0f, 250, numArcSegments);
             sr::srPathArc(glm::vec2(), 90.0f, 180.0f, 250, numArcSegments);
             sr::srEndPath();
         }
-
-        
 
         /*sr::srBeginPath(sr::PathType_Stroke);
         sr::srPathSetStrokeWidth(lineWidth);
@@ -296,12 +281,9 @@ int main()
         sr::srVertex2f(point3);
         sr::srEnd();*/
 
-
-
-        //sr::srDrawMesh(mesh);
+        // sr::srDrawMesh(mesh);
 
         sr::srEndFrame();
-
 
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         SDL_GL_SwapWindow(window);
@@ -310,15 +292,12 @@ int main()
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplSDL2_Shutdown();
 
-
     ImGui::DestroyContext();
     sr::srTerminate();
-
 
     SDL_GL_DeleteContext(gl_context);
     SDL_DestroyWindow(window);
     SDL_Quit();
-
 
     return 0;
 }
