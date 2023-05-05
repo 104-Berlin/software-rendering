@@ -202,7 +202,7 @@ namespace sr
   R_API void srNewFrame(int frameWidth, int frameHeight)
   {
     srViewport(0, 0, (float)frameWidth, (float)frameHeight);
-    srClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+    srClearColor(0.8f, 0.8f, 0.8f, 1.0f);
     srClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     SRC->CurrentProjection = glm::orthoLH(0.0f, (float)frameWidth, (float)frameHeight, 0.0f, -1.0f, 1.0f);
