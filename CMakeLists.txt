@@ -19,13 +19,3 @@ add_library(ImGui STATIC    deps/imgui/imgui.cpp
 
 
 target_include_directories(ImGui PUBLIC deps/imgui)
-
-add_executable(SoftwareRendering    main.cpp
-                                    deps/imgui/backends/imgui_impl_opengl3.cpp
-                                    deps/imgui/backends/imgui_impl_sdl.cpp)
-                                    
-target_link_libraries(SoftwareRendering srRenderer SDL2-static ImGui)
-target_include_directories(SoftwareRendering SYSTEM PUBLIC deps/sdl2/include)
-
-set_target_properties(SoftwareRendering
-                        PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})

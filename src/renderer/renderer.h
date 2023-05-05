@@ -1,6 +1,6 @@
 #pragma once
 
-#if WIN32
+#if 0
     #ifdef RENDERER_EXPORT
         #define R_API __declspec(dllexport)
     #else
