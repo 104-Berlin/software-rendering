@@ -18,7 +18,7 @@ namespace sr
 
     R_API void srInitContext(SRContext *context);
 
-    R_API void srNewFrame(int frameWidth, int frameHeight);
+    R_API void srNewFrame(int frameWidth, int frameHeight, int windowWidth, int windowHeight);
     R_API void srEndFrame();
 
     /**
@@ -474,6 +474,7 @@ namespace sr
     R_API void srDrawText(Font font, const char *text, const glm::vec2 &position, Color color = 0xff000000, bool fillRects = false);
 
     R_API void srDrawCircle(const glm::vec2 &center, float radius, Color color = 0xffffffff, unsigned int segmentCount = 36);
+    R_API void srDrawCircleOutline(const glm::vec2 &center, float radius, float thickness, Color color = 0xffffffff, unsigned int segmentCount = 36);
     R_API void srDrawArc(const glm::vec2 &center, float startAngle, float endAngle, float radius, Color color = 0xffffffff, unsigned int segmentCount = 22);
 
     struct SRContext

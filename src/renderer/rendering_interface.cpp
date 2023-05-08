@@ -199,13 +199,13 @@ namespace sr
     context->RenderBatch = srLoadRenderBatch(5000);
   }
 
-  R_API void srNewFrame(int frameWidth, int frameHeight)
+  R_API void srNewFrame(int frameWidth, int frameHeight, int windowWidth, int windowHeight)
   {
     srViewport(0, 0, (float)frameWidth, (float)frameHeight);
     srClearColor(0.8f, 0.8f, 0.8f, 1.0f);
     srClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    SRC->CurrentProjection = glm::orthoLH(0.0f, (float)frameWidth, (float)frameHeight, 0.0f, -1.0f, 1.0f);
+    SRC->CurrentProjection = glm::orthoLH(0.0f, (float)windowWidth, (float)windowHeight, 0.0f, -1.0f, 1.0f);
     SRC->RenderBatch.CurrentDepth = 0.0f;
   }
 
@@ -1413,9 +1413,9 @@ namespace sr
         }
 
         float x0 = pos.x + glyph->offset_x;
-        float y0 = pos.y + glyph->offset_y;
+        float y0 = pos.y - glyph->offset_y;
         float x1 = x0 + glyph->width;
-        float y1 = y0 - glyph->height;
+        float y1 = y0 + glyph->height;
 
         float u0 = glyph->s0;
         float v0 = glyph->t0;
@@ -1444,6 +1444,15 @@ namespace sr
   R_API void srDrawCircle(const glm::vec2 &center, float radius, Color color, unsigned int segmentCount)
   {
     srDrawArc(center, 0.0f, 360.0f, radius, color, segmentCount);
+  }
+
+  R_API void srDrawCircleOutline(const glm::vec2 &center, float radius, float thickness, Color color, unsigned int segmentCount)
+  {
+    srBeginPath(PathType_Stroke);
+    srPathSetStrokeColor(color);
+    srPathSetStrokeWidth(thickness);
+    srPathArc(center, 0.0f, 360.0f, radius, segmentCount);
+    srEndPath(true);
   }
 
   R_API void srDrawArc(const glm::vec2 &center, float startAngle, float endAngle, float radius, Color color, unsigned int segmentCount)
