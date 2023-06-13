@@ -66,18 +66,20 @@ const char *distanceFieldFragmentShader = R"(
 
 
   vec3 glyph_color    = vec3(0.0,0.0,0.0);
-  vec3 outline_color  = vec3(0.0,0.0,0.0);
+  vec3 outline_color  = vec3(0.2,0.2,0.7);
 
   const float glyph_center   = 0.50;
-  const float outline_center = 0.55;
+  const float outlineWidth = 3.0/16.0;
+  const float smoothing = 2.0/16.0;
+  const float outline_center = 0.5 - outlineWidth;
 
   void main() {
     vec4 color = texture(Texture, TexCoord.st);
     float dist  = color.r;
-    float width = fwidth(dist);
-    float alpha = smoothstep(glyph_center-width, glyph_center+width, dist);
+    float alpha = smoothstep(outline_center - smoothing, outline_center + smoothing, dist);
+    float border = smoothstep(glyph_center - smoothing, glyph_center + smoothing, dist);
 
-    fragColor = vec4(glyph_color, alpha);
+    fragColor = vec4(mix(glyph_color, outline_color, border), alpha);
   }
 
 )";

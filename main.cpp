@@ -74,7 +74,7 @@ void mousePositionCallback(GLFWwindow* window, double xpos, double ypos)
     }
 }*/
 
-int main()
+int main(int argc, char *argv[])
 {
     SR_TRACE("19 mod 9 = %d", 19 % 9);
     SR_TRACE("19 mod 4 = %d", 19 % 4);
@@ -137,8 +137,7 @@ int main()
 
     sr::srTexturePrintData(texture, 4, 4, sr::TextureFormat_RGBA8);*/
     sr::Texture texture = sr::srLoadTextureFromFile("G:\\repos\\software-rendering\\texture.png");
-    sr::Font font = sr::srLoadFont("G:\\repos\\software-rendering\\Roboto.ttf", 96);
-
+    sr::Font font = sr::srLoadFont("G:\\repos\\software-rendering\\Roboto.ttf", 256);
     float displayAngle = 0;
 
     bool drawGrid = false;
@@ -202,12 +201,20 @@ int main()
         ImGui::SliderInt("Arc segments", &numArcSegments, 5, 75);
 
         ImGui::Text("Current Angle %f", displayAngle);
+
+        ImGui::Image((ImTextureID)font.Atlas->id, ImVec2(256, 256));
         ImGui::End();
 
         ImGui::Render();
 
         // SR Rendering
-        sr::srNewFrame(frameWidth, frameHeight);
+        int draw_width, draw_height, window_width, window_height;
+        SDL_GL_GetDrawableSize(window, &draw_width, &draw_height);
+        SDL_GetWindowSize(window, &window_width, &window_height);
+
+        glm::vec2 half_size = glm::vec2(draw_width, draw_height) / 2.0f;
+
+        sr::srNewFrame(draw_width, draw_height, window_width, window_height);
 
         const glm::vec2 &halfRectSize = rectSize / 2.0f;
 
@@ -246,19 +253,21 @@ int main()
 
         if (drawRect)
         {
-            sr::srDrawRectangleFilledRC({0.0f, 0.0f}, {rectSize.x, rectSize.y}, rectSize / 2.0f, rectRotation, cornerRadius, sr::srGetColorFromFloat(currentMeshColor));
-            sr::srDrawRectangleRC({0.0f, 0.0f}, {rectSize.x, rectSize.y}, rectSize / 2.0f, rectRotation, cornerRadius, lineWidth, sr::srGetColorFromFloat(currentLineColor));
+            sr::srDrawRectangleFilledRC(half_size, {rectSize.x, rectSize.y}, rectSize / 2.0f, rectRotation, cornerRadius, sr::srGetColorFromFloat(currentMeshColor));
+            sr::srDrawRectangleRC(half_size, {rectSize.x, rectSize.y}, rectSize / 2.0f, rectRotation, cornerRadius, lineWidth, sr::srGetColorFromFloat(currentLineColor));
         }
 
         if (drawArcs)
         {
             sr::srBeginPath(sr::PathType_Stroke);
-            sr::srPathSetStrokeWidth(400.0f);
+            sr::srPathSetStrokeWidth(4.0f);
             sr::srPathSetStrokeColor(currentLineColor);
             // sr::srPathArc(glm::vec2(), 0.0f, 90.0f, 250, numArcSegments);
-            sr::srPathArc(glm::vec2(), 90.0f, 180.0f, 250, numArcSegments);
+            sr::srPathArc(half_size, 90.0f, 180.0f, 250, numArcSegments);
             sr::srEndPath();
         }
+
+        sr::srDrawText(font, "Hello World", half_size, sr::srGetColorFromFloat(currentLineColor), drawLines);
 
         /*sr::srBeginPath(sr::PathType_Stroke);
         sr::srPathSetStrokeWidth(lineWidth);
