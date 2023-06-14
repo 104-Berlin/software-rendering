@@ -137,7 +137,16 @@ int main(int argc, char *argv[])
 
     sr::srTexturePrintData(texture, 4, 4, sr::TextureFormat_RGBA8);*/
     sr::Texture texture = sr::srLoadTextureFromFile("G:\\repos\\software-rendering\\texture.png");
-    sr::Font font = sr::srLoadFont("G:\\repos\\software-rendering\\timesbd.ttf", 24);
+    sr::Font font = sr::srLoadFont("G:\\repos\\software-rendering\\Roboto.ttf", 72);
+
+    float ddpi = 0.0f;
+    float hdpi = 0.0f;
+    float vdpi = 0.0f;
+
+    SDL_GetDisplayDPI(0, &ddpi, &hdpi, &vdpi);
+
+    SR_TRACE("DPI: %f, %f, %f", ddpi, hdpi, vdpi);
+
     float displayAngle = 0;
 
     bool drawGrid = false;
@@ -153,7 +162,11 @@ int main(int argc, char *argv[])
     glm::vec4 currentMeshColor(1.0f, 1.0f, 1.0f, 1.0f);
     glm::vec4 currentLineColor(1.0f, 0.0f, 0.0f, 1.0f);
 
-    char text[255] = "Hello World";
+    char text[255] = "Franz jagt im komplett verwahrlosten Taxi quer durch Bayern. 1234567890";
+    float glyph_center = 0.5f;
+    float smoothing = 0.08f;
+    float glyph_offset = 0.04f;
+    float glyph_outline_width = 0.4f;
 
     bool drawArcs = false;
     int numArcSegments = 5;
@@ -186,27 +199,33 @@ int main(int argc, char *argv[])
         ImGui::Separator();
 
         ImGui::Checkbox("Draw Grid", &drawGrid);
-        ImGui::Separator();
 
-        ImGui::Checkbox("Draw Rect", &drawRect);
-        ImGui::Checkbox("Draw Rect lines", &drawRectLine);
-        ImGui::SliderFloat("Rect Rotation", &rectRotation, -360.0f, 360.0f);
-        ImGui::SliderFloat("Corner Radius", &cornerRadius, 0.0f, 1.0f);
-        ImGui::SliderFloat("Line Width", &lineWidth, 1.0f, 100.0f);
-        ImGui::SliderFloat2("Rect Size", glm::value_ptr(rectSize), 0.1f, 500.0f);
-        ImGui::ColorEdit4("LineColor", glm::value_ptr(currentLineColor));
-        ImGui::ColorEdit4("CurrentColor", glm::value_ptr(currentMeshColor));
+        if (ImGui::CollapsingHeader("Rect"))
+        {
+            ImGui::Checkbox("Draw Rect", &drawRect);
+            ImGui::Checkbox("Draw Rect lines", &drawRectLine);
+            ImGui::SliderFloat("Rect Rotation", &rectRotation, -360.0f, 360.0f);
+            ImGui::SliderFloat("Corner Radius", &cornerRadius, 0.0f, 1.0f);
+            ImGui::SliderFloat("Line Width", &lineWidth, 1.0f, 100.0f);
+            ImGui::SliderFloat2("Rect Size", glm::value_ptr(rectSize), 0.1f, 500.0f);
+            ImGui::ColorEdit4("LineColor", glm::value_ptr(currentLineColor));
+            ImGui::ColorEdit4("CurrentColor", glm::value_ptr(currentMeshColor));
+        }
+        if (ImGui::CollapsingHeader("Arcs"))
+        {
 
-        ImGui::Separator();
+            ImGui::Checkbox("Draw arcs", &drawArcs);
+            ImGui::SliderInt("Arc segments", &numArcSegments, 5, 75);
 
-        ImGui::Checkbox("Draw arcs", &drawArcs);
-        ImGui::SliderInt("Arc segments", &numArcSegments, 5, 75);
+            ImGui::Text("Current Angle %f", displayAngle);
+        }
+        if (ImGui::CollapsingHeader("Text"))
+        {
+            ImGui::InputTextMultiline("Content", text, 255);
 
-        ImGui::Text("Current Angle %f", displayAngle);
-
-        ImGui::InputText("Text", text, 255);
-
-        ImGui::Image((ImTextureID)font.Texture.Texture.ID, ImVec2(256, 256));
+            ImGui::DragFloat("Outline Width", &glyph_outline_width, 0.001f, 0.0f, 0.5f);
+            ImGui::Image((ImTextureID)font.Texture.Texture.ID, ImGui::GetContentRegionAvail());
+        }
         ImGui::End();
 
         ImGui::Render();
@@ -218,7 +237,12 @@ int main(int argc, char *argv[])
 
         glm::vec2 half_size = glm::vec2(draw_width, draw_height) / 2.0f;
 
+        // Start new frame for rendering
         sr::srNewFrame(draw_width, draw_height, window_width, window_height);
+
+        // Update text shader uniforms for testing
+        sr::srUseShader(sr::srGetContext()->DistanceFieldShader);
+        sr::srShaderSetUniform1f(sr::srGetContext()->DistanceFieldShader, "outlineWidth", glyph_outline_width);
 
         const glm::vec2 &halfRectSize = rectSize / 2.0f;
 
@@ -271,7 +295,7 @@ int main(int argc, char *argv[])
             sr::srEndPath();
         }
 
-        sr::srDrawText(font, text, half_size, sr::srGetColorFromFloat(currentLineColor), drawLines);
+        sr::srDrawText(font, text, half_size, sr::srGetColorFromFloat(currentLineColor), glyph_outline_width);
 
         /*sr::srBeginPath(sr::PathType_Stroke);
         sr::srPathSetStrokeWidth(lineWidth);

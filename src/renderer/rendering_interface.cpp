@@ -1,6 +1,7 @@
 #include "../pch.h"
 #include "renderer.h"
 #include "glad/glad.h"
+#include "shelf_pack.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -26,11 +27,14 @@ const char *basicMeshVertexShader = R"(
 
   out vec4 Color;
   out vec2 TexCoord;
+  out vec3 Normal;
+
 
   void main()
   {
     Color = vColor;
     TexCoord = vTexCoord;
+    Normal = vNormal;
     gl_Position = ProjectionMatrix * vec4(vPosition, 1.0);
   }
 )";
@@ -67,6 +71,7 @@ const char *distanceFieldFragmentShader = R"(
 
   in vec4 Color;
   in vec2 TexCoord;
+  in vec3 Normal; // use x for border width
 
   uniform sampler2D Texture;
 
@@ -74,25 +79,41 @@ const char *distanceFieldFragmentShader = R"(
   vec3 glyph_color    = vec3(0.0,0.0,0.0);
   vec3 outline_color  = vec3(0.2,0.2,0.7);
 
-  const float glyph_center   = 0.50;
-  const float outlineWidth = 3.0/16.0;
-  const float smoothing = 2.0/16.0;
-  const float outline_center = 0.5 - outlineWidth;
+  const float glyph_center   = 0.5;
+  const float smoothing = 0.08;
+  const float offset = 0.04;
+  //uniform float outline_center = 0.5 - outlineWidth;
 
   void main() {
-    vec4 color = texture(Texture, TexCoord.st);
-    float dist  = color.r;
-    float alpha = smoothstep(outline_center - smoothing, outline_center + smoothing, dist);
-    float border = smoothstep(glyph_center - smoothing, glyph_center + smoothing, dist);
+    float outlineWidth = 0.5 - clamp(Normal.x, 0.0, 0.5);
 
-    //fragColor = color;//vec4(glyph_color, alpha);
-    fragColor = vec4(mix(glyph_color, outline_color, border), alpha);
-    //fragColor = vec4(1.0, 0.0, 0.0, 1.0);
+    vec4 sdf = texture(Texture, TexCoord.st);
+    float d  = sdf.r + offset;
+
+    vec4 result = vec4(0.0);
+
+    float outline_factor = smoothstep(glyph_center, glyph_center + smoothing, d);
+
+    float alpha = smoothstep(outlineWidth - smoothing, outlineWidth + smoothing, d);
+
+    result = vec4(mix(outline_color, glyph_color, outline_factor), alpha);
+
+
+
+
+    // Drop Shadow
+    //float d2 = texture(Texture, TexCoord.st+vec2(0.01, 0.01)).r + smoothing;
+    
+    //fragColor = vec4(mix(glyph_color, outline_color, border), alpha);
+
+
+
+    fragColor = result;
   }
 
 )";
 
-static const unsigned int FONT_TEXTURE_SIZE = 4096;
+static const unsigned int FONT_TEXTURE_SIZE = 2048;
 static const unsigned int FONT_TEXTURE_DEPTH = 1;
 
 char const *gl_error_string(GLenum const err)
@@ -208,6 +229,11 @@ namespace sr
     }
     context->RenderBatch = srLoadRenderBatch(5000);
     FT_Init_FreeType(&context->Libary);
+  }
+
+  R_API SRContext *srGetContext()
+  {
+    return SRC;
   }
 
   R_API void srNewFrame(int frameWidth, int frameHeight, int windowWidth, int windowHeight)
@@ -476,6 +502,15 @@ namespace sr
     }
   }
 
+  R_API void srShaderSetUniform1f(Shader shader, const char *name, float value)
+  {
+    unsigned int location = srShaderGetUniformLocation(name, shader);
+    if (location != -1)
+    {
+      glCall(glUniform1f(location, value));
+    }
+  }
+
   R_API void srShaderSetUniform2f(Shader shader, const char *name, const glm::vec2 &value)
   {
     unsigned int location = srShaderGetUniformLocation(name, shader);
@@ -534,8 +569,8 @@ namespace sr
 
     glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER));
     glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER));
-    glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST));
-    glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST));
+    glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR));
+    glCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
 
     glCall(glBindTexture(GL_TEXTURE_2D, 0));
 
@@ -1202,6 +1237,16 @@ namespace sr
     srVertex3f(glm::vec3(vertex.x, vertex.y, SRC->RenderBatch.CurrentDepth));
   }
 
+  R_API void srNormal3f(float x, float y, float z)
+  {
+    srNormal3f({x, y, z});
+  }
+
+  R_API void srNormal3f(const glm::vec3 &normal)
+  {
+    SRC->RenderBatch.CurrentNormal = normal;
+  }
+
   R_API void srColor3f(float r, float g, float b)
   {
     srColor4f(r, g, b, 1.0f);
@@ -1332,52 +1377,49 @@ namespace sr
     result->Texture = srLoadTexture(FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, FONT_TEXTURE_DEPTH == 1 ? TextureFormat_R8 : TextureFormat_RGB8);
     // srTextureSetData(result->Texture, FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, FONT_TEXTURE_DEPTH == 1 ? TextureFormat_R8 : TextureFormat_RGB8, (unsigned char *)0);
     result->Size = glm::ivec2(FONT_TEXTURE_SIZE);
-    result->CurrentRowHeight = 0;
-    result->RowPointer = 0;
     result->ImageData = new uint8_t[FONT_TEXTURE_SIZE * FONT_TEXTURE_SIZE * FONT_TEXTURE_DEPTH];
+    result->ShelfPack = new mapbox::ShelfPack(FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE);
     memset(result->ImageData, 0, FONT_TEXTURE_SIZE * FONT_TEXTURE_SIZE * FONT_TEXTURE_DEPTH);
+  }
+
+  void FontTextureUnload(FontTexture *font_texture)
+  {
+    srUnloadTexture(&font_texture->Texture);
+    delete[] font_texture->ImageData;
+    delete ((mapbox::ShelfPack *)font_texture->ShelfPack);
   }
 
   void FontTexturePushGlyph(FT_GlyphSlot glyph, FontTexture *result)
   {
-    if (result->ColPointer + glyph->bitmap.width > result->Size.x)
+    mapbox::ShelfPack &packer = *(mapbox::ShelfPack *)result->ShelfPack;
+    mapbox::Bin *bin = packer.packOne(-1, glyph->bitmap.width, glyph->bitmap.rows);
+    if (!bin)
     {
-      result->RowPointer += result->CurrentRowHeight;
-
-      if (result->RowPointer + glyph->bitmap.rows > result->Size.y)
-      {
-        SR_TRACE("ERROR: Fontfull");
-        return;
-      }
-
-      result->ColPointer = 0;
-      result->CurrentRowHeight = glyph->bitmap.rows;
+      SR_TRACE("FontTexturePushGlyph: Could not pack glyph into texture");
+      return;
     }
 
     // Write bitmap data to buffer
     for (int y = 0; y < glyph->bitmap.rows; y++)
     {
-      memcpy(result->ImageData + (result->RowPointer + y) * result->Size.x + result->ColPointer, glyph->bitmap.buffer + y * glyph->bitmap.width, glyph->bitmap.width);
+      memcpy(result->ImageData + (bin->y + y) * result->Size.x + bin->x, glyph->bitmap.buffer + y * glyph->bitmap.width, glyph->bitmap.width);
     }
 
     float kerningx = 0.0f;
     float kerningy = 0.0f;
 
     FontGlyph res = {
-        glm::vec2(glyph->bitmap.width, glyph->bitmap.rows),                          // size
-        glm::vec2(glyph->bitmap_left, glyph->bitmap_top),                            // offset
-        (int)(((float)glyph->advance.x) / 64.0f),                                    // advance
-        ((float)result->ColPointer) / ((float)result->Size.x),                       // u0;
-        ((float)result->RowPointer) / ((float)result->Size.x),                       // v0;
-        ((float)result->ColPointer + glyph->bitmap.width) / ((float)result->Size.x), // u1;
-        ((float)result->RowPointer + glyph->bitmap.rows) / ((float)result->Size.x),  // v1;
-        glyph->glyph_index                                                           // Char code
+        glm::vec2(glyph->bitmap.width, glyph->bitmap.rows),              // size
+        glm::vec2(glyph->bitmap_left, glyph->bitmap_top),                // offset
+        (int)(((float)glyph->advance.x) / 64.0f),                        // advance
+        ((float)bin->x) / ((float)result->Size.x),                       // u0;
+        ((float)bin->y) / ((float)result->Size.x),                       // v0;
+        ((float)bin->x + glyph->bitmap.width) / ((float)result->Size.x), // u1;
+        ((float)bin->y + glyph->bitmap.rows) / ((float)result->Size.x),  // v1;
+        glyph->glyph_index                                               // Char code
     };
 
     result->CharMap[glyph->glyph_index] = res;
-
-    result->ColPointer += glyph->bitmap.width;
-    result->CurrentRowHeight = srMax(result->CurrentRowHeight, glyph->bitmap.rows);
   }
 
   const FontGlyph *FontTextureGetGlyph(Font *font, char c)
@@ -1417,13 +1459,14 @@ namespace sr
         result.Face, /* handle to face object         */
         0,           /* char_width in 1/64 of points  */
         size * 64,   /* char_height in 1/64 of points */
-        300,         /* horizontal device resolution  */
-        300);
+        96,          /* horizontal device resolution  */
+        96);
 
     result.Size = size;
+    result.LineHeight = result.Face->height / 64.0;
 
     // Load first 128 chars
-    static const char *text = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ ";
+    static const char *text = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ -_.:,;#'+*1234567890!\"§$%&/\\[{()}]@€";
     for (char c = 0; c < strlen(text); c++)
     {
       LoadGlyph(text[c], &result);
@@ -1436,19 +1479,16 @@ namespace sr
 
   R_API void srUnloadFont(Font *font)
   {
-    delete[] font->Texture.ImageData;
+    FontTextureUnload(&font->Texture);
   }
 
-  R_API void srDrawText(Font font, const char *text, const glm::vec2 &position, Color color, bool fillRects)
+  R_API void srDrawText(Font font, const char *text, const glm::vec2 &position, Color color, float outline_thickness)
   {
     const size_t textLen = strlen(text);
 
     srBegin(EBatchDrawMode::QUADS);
     srColor1c(color);
-    if (!fillRects)
-    {
-      srPushMaterial({font.Texture.Texture, SRC->DistanceFieldShader});
-    }
+    srPushMaterial({font.Texture.Texture, SRC->DistanceFieldShader});
 
     float currentDepth = SRC->RenderBatch.CurrentDepth;
 
@@ -1463,7 +1503,7 @@ namespace sr
       if (c == '\n')
       {
         pos.x = position.x;
-        pos.y = pos.y - font.Size;
+        pos.y = pos.y + font.LineHeight;
         continue;
       }
       const FontGlyph *glyph = FontTextureGetGlyph(&font, c);
@@ -1478,10 +1518,10 @@ namespace sr
         }
         FT_Load_Glyph(font.Face, char_index, FT_LOAD_RENDER);
 
-        float x0 = pos.x + glyph->Offset.x;
-        float y0 = pos.y - glyph->Offset.y;
-        float x1 = x0 + glyph->Size.x;
-        float y1 = y0 + glyph->Size.y;
+        float x0 = pos.x + (glyph->Offset.x);
+        float y0 = pos.y - (glyph->Offset.y);
+        float x1 = x0 + (glyph->Size.x);
+        float y1 = y0 + (glyph->Size.y);
 
         float u0 = glyph->u0;
         float v0 = glyph->v0;
@@ -1489,15 +1529,19 @@ namespace sr
         float v1 = glyph->v1;
 
         srTextureCoord2f(u0, v1);
+        srNormal3f(outline_thickness, 0.0f, 0.0f);
         srVertex3f(x0, y1, currentDepth);
 
         srTextureCoord2f(u0, v0);
+        srNormal3f(outline_thickness, 0.0f, 0.0f);
         srVertex3f(x0, y0, currentDepth);
 
         srTextureCoord2f(u1, v0);
+        srNormal3f(outline_thickness, 0.0f, 0.0f);
         srVertex3f(x1, y0, currentDepth);
 
         srTextureCoord2f(u1, v1);
+        srNormal3f(outline_thickness, 0.0f, 0.0f);
         srVertex3f(x1, y1, currentDepth);
 
         pos.x += glyph->advance;

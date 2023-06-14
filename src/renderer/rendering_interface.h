@@ -17,6 +17,7 @@ namespace sr
     R_API void srInitGL();
 
     R_API void srInitContext(SRContext *context);
+    R_API SRContext *srGetContext();
 
     R_API void srNewFrame(int frameWidth, int frameHeight, int windowWidth, int windowHeight);
     R_API void srEndFrame();
@@ -158,6 +159,7 @@ namespace sr
     R_API unsigned int srShaderGetUniformLocation(const char *name, Shader shader, bool show_err = false);
     R_API void srShaderSetUniform1b(Shader shader, const char *name, bool value);
     R_API void srShaderSetUniform1i(Shader shader, const char *name, int value);
+    R_API void srShaderSetUniform1f(Shader shader, const char *name, float value);
     R_API void srShaderSetUniform2f(Shader shader, const char *name, const glm::vec2 &value);
     R_API void srShaderSetUniform3f(Shader shader, const char *name, const glm::vec3 &value);
     R_API void srShaderSetUniformMat4(Shader shader, const char *name, const glm::mat4 &value);
@@ -406,6 +408,8 @@ namespace sr
     R_API void srVertex3f(const glm::vec3 &vertex);
     R_API void srVertex2f(float x, float y);
     R_API void srVertex2f(const glm::vec2 &vertex);
+    R_API void srNormal3f(float x, float y, float z);
+    R_API void srNormal3f(const glm::vec3 &normal);
     R_API void srColor1c(Color color);
     R_API void srColor3f(float r, float g, float b);
     R_API void srColor3f(const glm::vec3 &color);
@@ -477,16 +481,15 @@ namespace sr
     {
         Texture Texture;
         glm::ivec2 Size;
-        uint32_t RowPointer;
-        uint32_t ColPointer;
-        uint32_t CurrentRowHeight;
         uint8_t *ImageData;
+        void *ShelfPack; // For packing the glyphs
         std::unordered_map<unsigned int, FontGlyph> CharMap;
     };
 
     struct Font
     {
-        float Size;
+        int Size;
+        int LineHeight;
         FT_Face Face;
         FontTexture Texture;
     };
@@ -494,7 +497,9 @@ namespace sr
     R_API Font srLoadFont(const char *filePath, unsigned int size = 24);
     R_API void srUnloadFont(Font *font);
 
-    R_API void srDrawText(Font font, const char *text, const glm::vec2 &position, Color color = 0xff000000, bool fillRects = false);
+    R_API int srFontGetTextWidth(Font font, const char *text);
+
+    R_API void srDrawText(Font font, const char *text, const glm::vec2 &position, Color color = 0xff000000, float outline_thickness = 0.0f);
 
     R_API void srDrawCircle(const glm::vec2 &center, float radius, Color color = 0xffffffff, unsigned int segmentCount = 36);
     R_API void srDrawCircleOutline(const glm::vec2 &center, float radius, float thickness, Color color = 0xffffffff, unsigned int segmentCount = 36);
