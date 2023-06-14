@@ -9,6 +9,7 @@
 #include "backends/imgui_impl_opengl3.h"
 
 static int frameWidth, frameHeight;
+static int windowWidth, windowHeight;
 static glm::vec2 MousePosition{};
 static std::vector<glm::vec2> EditPath;
 static int EditGrabIndex = -1;
