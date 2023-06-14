@@ -461,14 +461,37 @@ namespace sr
     R_API void srDrawGrid(const glm::vec2 &position, unsigned int columns, unsigned int rows, float cellSizeX, float cellSizeY);
 
     // Fonts
-    struct Font
+
+    struct FontGlyph
     {
-        ftgl::texture_font_t *Font;
-        ftgl::texture_atlas_t *Atlas;
-        float Size;
+        glm::vec2 Size;
+        glm::vec2 Offset;
+        int advance;
+        float u0;
+        float v0;
+        float u1;
+        float v1;
+        unsigned int CharCode;
+    };
+    struct FontTexture
+    {
+        Texture Texture;
+        glm::ivec2 Size;
+        uint32_t RowPointer;
+        uint32_t ColPointer;
+        uint32_t CurrentRowHeight;
+        uint8_t *ImageData;
+        std::unordered_map<unsigned int, FontGlyph> CharMap;
     };
 
-    R_API Font srLoadFont(const char *filePath, float size = 24.0f);
+    struct Font
+    {
+        float Size;
+        FT_Face Face;
+        FontTexture Texture;
+    };
+
+    R_API Font srLoadFont(const char *filePath, unsigned int size = 24);
     R_API void srUnloadFont(Font *font);
 
     R_API void srDrawText(Font font, const char *text, const glm::vec2 &position, Color color = 0xff000000, bool fillRects = false);

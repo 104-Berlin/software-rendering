@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
 
     sr::srTexturePrintData(texture, 4, 4, sr::TextureFormat_RGBA8);*/
     sr::Texture texture = sr::srLoadTextureFromFile("G:\\repos\\software-rendering\\texture.png");
-    sr::Font font = sr::srLoadFont("G:\\repos\\software-rendering\\Roboto.ttf", 256);
+    sr::Font font = sr::srLoadFont("G:\\repos\\software-rendering\\timesbd.ttf", 24);
     float displayAngle = 0;
 
     bool drawGrid = false;
@@ -152,6 +152,8 @@ int main(int argc, char *argv[])
     glm::vec2 rectSize = {100.0f, 100.0f};
     glm::vec4 currentMeshColor(1.0f, 1.0f, 1.0f, 1.0f);
     glm::vec4 currentLineColor(1.0f, 0.0f, 0.0f, 1.0f);
+
+    char text[255] = "Hello World";
 
     bool drawArcs = false;
     int numArcSegments = 5;
@@ -202,7 +204,9 @@ int main(int argc, char *argv[])
 
         ImGui::Text("Current Angle %f", displayAngle);
 
-        ImGui::Image((ImTextureID)font.Atlas->id, ImVec2(256, 256));
+        ImGui::InputText("Text", text, 255);
+
+        ImGui::Image((ImTextureID)font.Texture.Texture.ID, ImVec2(256, 256));
         ImGui::End();
 
         ImGui::Render();
@@ -267,7 +271,7 @@ int main(int argc, char *argv[])
             sr::srEndPath();
         }
 
-        sr::srDrawText(font, "Hello World", half_size, sr::srGetColorFromFloat(currentLineColor), drawLines);
+        sr::srDrawText(font, text, half_size, sr::srGetColorFromFloat(currentLineColor), drawLines);
 
         /*sr::srBeginPath(sr::PathType_Stroke);
         sr::srPathSetStrokeWidth(lineWidth);

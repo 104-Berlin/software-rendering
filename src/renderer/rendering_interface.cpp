@@ -6,6 +6,12 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image/stb_image.h"
 
+extern "C"
+{
+#include <ft2build.h>
+#include FT_FREETYPE_H
+}
+
 sr::SRContext *sr::SRC = nullptr;
 
 const char *basicMeshVertexShader = R"(
@@ -79,12 +85,14 @@ const char *distanceFieldFragmentShader = R"(
     float alpha = smoothstep(outline_center - smoothing, outline_center + smoothing, dist);
     float border = smoothstep(glyph_center - smoothing, glyph_center + smoothing, dist);
 
+    //fragColor = color;//vec4(glyph_color, alpha);
     fragColor = vec4(mix(glyph_color, outline_color, border), alpha);
+    //fragColor = vec4(1.0, 0.0, 0.0, 1.0);
   }
 
 )";
 
-static const unsigned int FONT_TEXTURE_SIZE = 2048;
+static const unsigned int FONT_TEXTURE_SIZE = 4096;
 static const unsigned int FONT_TEXTURE_DEPTH = 1;
 
 char const *gl_error_string(GLenum const err)
@@ -199,6 +207,7 @@ namespace sr
       SRC->DistanceFieldShader = srLoadShader(basicMeshVertexShader, distanceFieldFragmentShader);
     }
     context->RenderBatch = srLoadRenderBatch(5000);
+    FT_Init_FreeType(&context->Libary);
   }
 
   R_API void srNewFrame(int frameWidth, int frameHeight, int windowWidth, int windowHeight)
@@ -1318,68 +1327,116 @@ namespace sr
     srEnd();
   }
 
-  R_API Font srLoadFont(const char *filePath, float size)
+  void FontTextureInit(FontTexture *result)
+  {
+    result->Texture = srLoadTexture(FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, FONT_TEXTURE_DEPTH == 1 ? TextureFormat_R8 : TextureFormat_RGB8);
+    // srTextureSetData(result->Texture, FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, FONT_TEXTURE_DEPTH == 1 ? TextureFormat_R8 : TextureFormat_RGB8, (unsigned char *)0);
+    result->Size = glm::ivec2(FONT_TEXTURE_SIZE);
+    result->CurrentRowHeight = 0;
+    result->RowPointer = 0;
+    result->ImageData = new uint8_t[FONT_TEXTURE_SIZE * FONT_TEXTURE_SIZE * FONT_TEXTURE_DEPTH];
+    memset(result->ImageData, 0, FONT_TEXTURE_SIZE * FONT_TEXTURE_SIZE * FONT_TEXTURE_DEPTH);
+  }
+
+  void FontTexturePushGlyph(FT_GlyphSlot glyph, FontTexture *result)
+  {
+    if (result->ColPointer + glyph->bitmap.width > result->Size.x)
+    {
+      result->RowPointer += result->CurrentRowHeight;
+
+      if (result->RowPointer + glyph->bitmap.rows > result->Size.y)
+      {
+        SR_TRACE("ERROR: Fontfull");
+        return;
+      }
+
+      result->ColPointer = 0;
+      result->CurrentRowHeight = glyph->bitmap.rows;
+    }
+
+    // Write bitmap data to buffer
+    for (int y = 0; y < glyph->bitmap.rows; y++)
+    {
+      memcpy(result->ImageData + (result->RowPointer + y) * result->Size.x + result->ColPointer, glyph->bitmap.buffer + y * glyph->bitmap.width, glyph->bitmap.width);
+    }
+
+    float kerningx = 0.0f;
+    float kerningy = 0.0f;
+
+    FontGlyph res = {
+        glm::vec2(glyph->bitmap.width, glyph->bitmap.rows),                          // size
+        glm::vec2(glyph->bitmap_left, glyph->bitmap_top),                            // offset
+        (int)(((float)glyph->advance.x) / 64.0f),                                    // advance
+        ((float)result->ColPointer) / ((float)result->Size.x),                       // u0;
+        ((float)result->RowPointer) / ((float)result->Size.x),                       // v0;
+        ((float)result->ColPointer + glyph->bitmap.width) / ((float)result->Size.x), // u1;
+        ((float)result->RowPointer + glyph->bitmap.rows) / ((float)result->Size.x),  // v1;
+        glyph->glyph_index                                                           // Char code
+    };
+
+    result->CharMap[glyph->glyph_index] = res;
+
+    result->ColPointer += glyph->bitmap.width;
+    result->CurrentRowHeight = srMax(result->CurrentRowHeight, glyph->bitmap.rows);
+  }
+
+  const FontGlyph *FontTextureGetGlyph(Font *font, char c)
+  {
+    unsigned int char_code = FT_Get_Char_Index(font->Face, c);
+
+    if (font->Texture.CharMap.find(char_code) != font->Texture.CharMap.end())
+    {
+      return &font->Texture.CharMap[char_code];
+    }
+    return nullptr;
+  }
+
+  void LoadGlyph(char c, Font *font)
+  {
+    unsigned int char_code = FT_Get_Char_Index(font->Face, c);
+    FT_Load_Glyph(font->Face, char_code, FT_LOAD_DEFAULT);
+    FT_Render_Glyph(font->Face->glyph, FT_RENDER_MODE_SDF);
+    FontTexturePushGlyph(font->Face->glyph, &font->Texture);
+  }
+
+  void FontGetKerning(Font *font, unsigned int c1, unsigned int c2, int *x, int *y)
+  {
+    FT_Vector kerning{};
+    FT_Get_Kerning(font->Face, c1, c2, FT_KERNING_DEFAULT, &kerning);
+    *x = kerning.x >> 6;
+    *y = kerning.y;
+  }
+
+  R_API Font srLoadFont(const char *filePath, unsigned int size)
   {
     Font result{};
+    FontTextureInit(&result.Texture);
+
+    FT_New_Face(SRC->Libary, filePath, 0, &result.Face);
+    FT_Set_Char_Size(
+        result.Face, /* handle to face object         */
+        0,           /* char_width in 1/64 of points  */
+        size * 64,   /* char_height in 1/64 of points */
+        300,         /* horizontal device resolution  */
+        300);
+
     result.Size = size;
 
-    result.Atlas = ftgl::texture_atlas_new(FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, FONT_TEXTURE_DEPTH);
-    result.Font = ftgl::texture_font_new_from_file(result.Atlas, size, filePath);
-
-    if (!result.Font)
-    {
-      SR_TRACE("Failed to load font \"%s\"!", filePath);
-      srUnloadFont(&result);
-      return result;
-    }
-
     // Load first 128 chars
-    static const char *text = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    static const char *text = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ ";
     for (char c = 0; c < strlen(text); c++)
     {
-      texture_font_get_glyph(result.Font, text + c);
+      LoadGlyph(text[c], &result);
     }
 
-    Texture fontTexture = srLoadTexture(FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, FONT_TEXTURE_DEPTH == 1 ? TextureFormat_R8 : TextureFormat_RGB8);
-    srTextureSetData(fontTexture, FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, FONT_TEXTURE_DEPTH == 1 ? TextureFormat_R8 : TextureFormat_RGB8, result.Atlas->data);
-    result.Atlas->id = fontTexture.ID;
+    srTextureSetData(result.Texture.Texture, FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, FONT_TEXTURE_DEPTH == 1 ? TextureFormat_R8 : TextureFormat_RGB8, (unsigned char *)result.Texture.ImageData);
 
     return result;
   }
 
   R_API void srUnloadFont(Font *font)
   {
-    if (font->Atlas)
-    {
-      texture_atlas_delete(font->Atlas);
-      font->Atlas = NULL;
-    }
-    if (font->Font)
-    {
-      texture_font_delete(font->Font);
-      font->Font = NULL;
-    }
-  }
-
-  /**
-   * @brief Finds texture glyph and loads it if not found in the atlas
-   *
-   * @return texture_glyph_t*
-   */
-  static texture_glyph_t *srFontGetGlyph(texture_font_t *font, const char *codepoint)
-  {
-    texture_glyph_t *result = texture_font_find_glyph(font, codepoint);
-    if (!result)
-    {
-      if (texture_font_load_glyph(font, codepoint) == 1)
-      {
-        result = texture_font_find_glyph(font, codepoint);
-        Texture tex;
-        tex.ID = font->atlas->id;
-        srTextureSetData(tex, FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, FONT_TEXTURE_DEPTH == 1 ? TextureFormat_R8 : TextureFormat_RGB8, font->atlas->data);
-      }
-    }
-    return result;
+    delete[] font->Texture.ImageData;
   }
 
   R_API void srDrawText(Font font, const char *text, const glm::vec2 &position, Color color, bool fillRects)
@@ -1390,12 +1447,16 @@ namespace sr
     srColor1c(color);
     if (!fillRects)
     {
-      srPushMaterial({{font.Atlas->id}, SRC->DistanceFieldShader});
+      srPushMaterial({font.Texture.Texture, SRC->DistanceFieldShader});
     }
 
     float currentDepth = SRC->RenderBatch.CurrentDepth;
 
-    glm::vec2 pos = position;
+    unsigned int prev = 0;
+
+    bool has_kerning = FT_HAS_KERNING(font.Face);
+
+    glm::ivec2 pos = position;
     for (size_t i = 0; i < textLen; i++)
     {
       char c = text[i];
@@ -1405,24 +1466,27 @@ namespace sr
         pos.y = pos.y - font.Size;
         continue;
       }
-      texture_glyph_t *glyph = srFontGetGlyph(font.Font, text + i);
+      const FontGlyph *glyph = FontTextureGetGlyph(&font, c);
       if (glyph)
       {
-        if (i > 0)
+        unsigned int char_index = glyph->CharCode;
+        if (prev)
         {
-          float kerning = texture_glyph_get_kerning(glyph, text + i - 1);
-          pos.x += kerning;
+          FT_Vector kerning{};
+          FT_Get_Kerning(font.Face, prev, char_index, FT_KERNING_DEFAULT, &kerning);
+          pos.x += (kerning.x >> 6);
         }
+        FT_Load_Glyph(font.Face, char_index, FT_LOAD_RENDER);
 
-        float x0 = pos.x + glyph->offset_x;
-        float y0 = pos.y - glyph->offset_y;
-        float x1 = x0 + glyph->width;
-        float y1 = y0 + glyph->height;
+        float x0 = pos.x + glyph->Offset.x;
+        float y0 = pos.y - glyph->Offset.y;
+        float x1 = x0 + glyph->Size.x;
+        float y1 = y0 + glyph->Size.y;
 
-        float u0 = glyph->s0;
-        float v0 = glyph->t0;
-        float u1 = glyph->s1;
-        float v1 = glyph->t1;
+        float u0 = glyph->u0;
+        float v0 = glyph->v0;
+        float u1 = glyph->u1;
+        float v1 = glyph->v1;
 
         srTextureCoord2f(u0, v1);
         srVertex3f(x0, y1, currentDepth);
@@ -1436,8 +1500,9 @@ namespace sr
         srTextureCoord2f(u1, v1);
         srVertex3f(x1, y1, currentDepth);
 
-        pos.x += glyph->advance_x;
-        currentDepth -= 0.00001f;
+        pos.x += glyph->advance;
+        prev = char_index;
+        currentDepth -= 0.0001f;
       }
     }
     srEnd();
