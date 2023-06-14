@@ -490,6 +490,7 @@ namespace sr
     {
         int Size;
         int LineHeight;
+        int LineTop;
         FT_Face Face;
         FontTexture Texture;
     };

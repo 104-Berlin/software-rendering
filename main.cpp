@@ -294,6 +294,7 @@ int main(int argc, char *argv[])
             sr::srEndPath();
         }
 
+        sr::srDrawRectangle(half_size, {sr::srFontGetTextWidth(font, text), 10.0f}, {0.0f, 0.0f});
         sr::srDrawText(font, text, half_size, sr::srGetColorFromFloat(currentLineColor), glyph_outline_width);
 
         /*sr::srBeginPath(sr::PathType_Stroke);

@@ -1463,7 +1463,8 @@ namespace sr
         96);
 
     result.Size = size;
-    result.LineHeight = result.Face->height / 64.0;
+    result.LineHeight = result.Face->height / 64;
+    result.LineTop = result.Face->ascender;
 
     // Load first 128 chars
     static const char *text = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ -_.:,;#'+*1234567890!\"§$%&/\\[{()}]@€";
@@ -1480,6 +1481,41 @@ namespace sr
   R_API void srUnloadFont(Font *font)
   {
     FontTextureUnload(&font->Texture);
+  }
+
+  R_API int srFontGetTextWidth(Font font, const char *text)
+  {
+    int max_line_width = 0;
+    int current_line_width = 0;
+
+    unsigned int prev = 0;
+
+    for (size_t i = 0; i < strlen(text); i++)
+    {
+      char c = text[i];
+      if (c == '\n')
+      {
+        max_line_width = srMax(max_line_width, current_line_width);
+        current_line_width = 0;
+        continue;
+      }
+      const FontGlyph *glyph = FontTextureGetGlyph(&font, c);
+      if (glyph)
+      {
+        unsigned int char_index = glyph->CharCode;
+        if (prev)
+        {
+          FT_Vector kerning{};
+          FT_Get_Kerning(font.Face, prev, char_index, FT_KERNING_DEFAULT, &kerning);
+          current_line_width += (kerning.x >> 6);
+        }
+        current_line_width += glyph->Offset.x + glyph->advance;
+      }
+    }
+
+    max_line_width = srMax(max_line_width, current_line_width);
+
+    return max_line_width;
   }
 
   R_API void srDrawText(Font font, const char *text, const glm::vec2 &position, Color color, float outline_thickness)
@@ -1504,6 +1540,7 @@ namespace sr
       {
         pos.x = position.x;
         pos.y = pos.y + font.LineHeight;
+        SR_TRACE("new line: %i", font.LineHeight);
         continue;
       }
       const FontGlyph *glyph = FontTextureGetGlyph(&font, c);
