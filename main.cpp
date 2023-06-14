@@ -8,7 +8,7 @@
 #include "backends/imgui_impl_sdl.h"
 #include "backends/imgui_impl_opengl3.h"
 
-static int frameWidth, frameHeight;
+int draw_width, draw_height, window_width, window_height;
 static glm::vec2 MousePosition{};
 static std::vector<glm::vec2> EditPath;
 static int EditGrabIndex = -1;
@@ -231,11 +231,10 @@ int main(int argc, char *argv[])
         ImGui::Render();
 
         // SR Rendering
-        int draw_width, draw_height, window_width, window_height;
         SDL_GL_GetDrawableSize(window, &draw_width, &draw_height);
         SDL_GetWindowSize(window, &window_width, &window_height);
 
-        glm::vec2 half_size = glm::vec2(draw_width, draw_height) / 2.0f;
+        glm::vec2 half_size = glm::vec2(window_width, window_height) / 2.0f;
 
         // Start new frame for rendering
         sr::srNewFrame(draw_width, draw_height, window_width, window_height);

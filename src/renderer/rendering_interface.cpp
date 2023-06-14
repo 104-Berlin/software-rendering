@@ -1409,8 +1409,8 @@ namespace sr
     float kerningy = 0.0f;
 
     FontGlyph res = {
-        glm::vec2(glyph->bitmap.width, glyph->bitmap.rows),              // size
-        glm::vec2(glyph->bitmap_left, glyph->bitmap_top),                // offset
+        glm::ivec2(glyph->bitmap.width, glyph->bitmap.rows),             // size
+        glm::ivec2(glyph->bitmap_left, glyph->bitmap_top),               // offset
         (int)(((float)glyph->advance.x) / 64.0f),                        // advance
         ((float)bin->x) / ((float)result->Size.x),                       // u0;
         ((float)bin->y) / ((float)result->Size.x),                       // v0;

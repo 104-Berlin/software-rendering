@@ -468,8 +468,8 @@ namespace sr
 
     struct FontGlyph
     {
-        glm::vec2 Size;
-        glm::vec2 Offset;
+        glm::ivec2 Size;
+        glm::ivec2 Offset;
         int advance;
         float u0;
         float v0;
