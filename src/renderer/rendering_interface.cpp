@@ -80,24 +80,26 @@ const char *distanceFieldFragmentShader = R"(
   vec3 outline_color  = vec3(0.2,0.2,0.7);
 
   const float glyph_center   = 0.5;
-  const float smoothing = 0.08;
-  const float offset = 0.04;
+  const float smoothing = 0.04;
   //uniform float outline_center = 0.5 - outlineWidth;
 
   void main() {
     float outlineWidth = 0.5 - clamp(Normal.x, 0.0, 0.5);
 
     vec4 sdf = texture(Texture, TexCoord.st);
-    float d  = sdf.r + offset;
+    float d  = sdf.r;
 
-    float alpha = smoothstep(outlineWidth - smoothing, outlineWidth + smoothing, d);
 
     vec4 result = vec4(0.0);
     if (Normal.x < 0.01) {
+      float alpha = smoothstep(glyph_center - smoothing, glyph_center + smoothing, d);
+
       result = vec4(glyph_color, alpha);
     }
     else {
+      float alpha = smoothstep(outlineWidth - smoothing, outlineWidth + smoothing, d);
       float outline_factor = smoothstep(glyph_center, glyph_center + smoothing, d);
+
       result = vec4(mix(outline_color, glyph_color, outline_factor), alpha);
     }
 

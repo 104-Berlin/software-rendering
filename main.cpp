@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
 
     sr::srTexturePrintData(texture, 4, 4, sr::TextureFormat_RGBA8);*/
     sr::Texture texture = sr::srLoadTextureFromFile("G:\\repos\\software-rendering\\texture.png");
-    sr::FontHandle font = sr::srLoadFont("G:\\repos\\software-rendering\\Roboto.ttf", 72);
+    sr::FontHandle font = sr::srLoadFont("G:\\repos\\software-rendering\\Roboto.ttf", 48);
 
     float ddpi = 0.0f;
     float hdpi = 0.0f;
@@ -164,9 +164,8 @@ int main(int argc, char *argv[])
 
     char text[255] = "Franz jagt im komplett verwahrlosten Taxi quer durch Bayern. 1234567890";
     float glyph_center = 0.5f;
-    float smoothing = 0.08f;
-    float glyph_offset = 0.04f;
-    float glyph_outline_width = 0.01f;
+    float smoothing = 0.04f;
+    float glyph_outline_width = 0.0f;
 
     bool drawArcs = false;
     int numArcSegments = 5;
@@ -223,6 +222,9 @@ int main(int argc, char *argv[])
         {
             ImGui::InputTextMultiline("Content", text, 255);
 
+            ImGui::DragFloat("Glyph Center", &glyph_center, 0.001f, 0.0f, 1.0f);
+            ImGui::DragFloat("Smoothing", &smoothing, 0.001f, 0.0f, 1.0f);
+
             ImGui::DragFloat("Outline Width", &glyph_outline_width, 0.001f, 0.0f, 0.5f);
             ImGui::Image((ImTextureID)(unsigned long long)sr::srFontGetTextureId(font), ImGui::GetContentRegionAvail());
         }
@@ -241,7 +243,8 @@ int main(int argc, char *argv[])
 
         // Update text shader uniforms for testing
         sr::srUseShader(sr::srGetContext()->DistanceFieldShader);
-        sr::srShaderSetUniform1f(sr::srGetContext()->DistanceFieldShader, "outlineWidth", glyph_outline_width);
+        sr::srShaderSetUniform1f(sr::srGetContext()->DistanceFieldShader, "glyph_center", glyph_center);
+        sr::srShaderSetUniform1f(sr::srGetContext()->DistanceFieldShader, "smoothing", smoothing);
 
         const glm::vec2 &halfRectSize = rectSize / 2.0f;
 
@@ -295,7 +298,7 @@ int main(int argc, char *argv[])
         }
 
         sr::srDrawRectangle(half_size - glm::vec2(0.0f, sr::srFontGetLineTop(font)), sr::srFontGetTextSize(font, text), {0.0f, 0.0f});
-        sr::srDrawText(font, text, half_size, sr::srGetColorFromFloat(currentLineColor), glyph_outline_width);
+        sr::srDrawText(font, text, {half_size.x, (half_size.y * 2) + sr::srFontGetLineBottom(font)}, sr::srGetColorFromFloat(currentLineColor), glyph_outline_width);
 
         /*sr::srBeginPath(sr::PathType_Stroke);
         sr::srPathSetStrokeWidth(lineWidth);
