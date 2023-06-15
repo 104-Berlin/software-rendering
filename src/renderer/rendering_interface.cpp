@@ -90,16 +90,16 @@ const char *distanceFieldFragmentShader = R"(
     vec4 sdf = texture(Texture, TexCoord.st);
     float d  = sdf.r + offset;
 
-    vec4 result = vec4(0.0);
-
-    float outline_factor = smoothstep(glyph_center, glyph_center + smoothing, d);
-
     float alpha = smoothstep(outlineWidth - smoothing, outlineWidth + smoothing, d);
 
-    result = vec4(mix(outline_color, glyph_color, outline_factor), alpha);
-
-
-
+    vec4 result = vec4(0.0);
+    if (Normal.x < 0.01) {
+      result = vec4(glyph_color, alpha);
+    }
+    else {
+      float outline_factor = smoothstep(glyph_center, glyph_center + smoothing, d);
+      result = vec4(mix(outline_color, glyph_color, outline_factor), alpha);
+    }
 
     // Drop Shadow
     //float d2 = texture(Texture, TexCoord.st+vec2(0.01, 0.01)).r + smoothing;
@@ -1681,14 +1681,13 @@ namespace sr
       {
         pos.x = position.x;
         pos.y = pos.y + font.LineHeight;
-        SR_TRACE("new line: %i", font.LineHeight);
         continue;
       }
       const FontGlyph *glyph = FontTextureGetGlyph(font_ptr, c);
       if (glyph)
       {
         unsigned int char_index = glyph->CharCode;
-        if (prev)
+        if (prev && has_kerning)
         {
           FT_Vector kerning{};
           FT_Get_Kerning(font.Face, prev, char_index, FT_KERNING_DEFAULT, &kerning);
