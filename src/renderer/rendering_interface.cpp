@@ -1726,6 +1726,7 @@ namespace sr
         currentDepth -= 0.0001f;
       }
     }
+    SRC->RenderBatch.CurrentDepth = currentDepth;
     srEnd();
   }
 
