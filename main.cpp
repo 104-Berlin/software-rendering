@@ -8,7 +8,7 @@
 #include "backends/imgui_impl_sdl.h"
 #include "backends/imgui_impl_opengl3.h"
 
-static int frameWidth, frameHeight;
+int draw_width, draw_height, window_width, window_height;
 static glm::vec2 MousePosition{};
 static std::vector<glm::vec2> EditPath;
 static int EditGrabIndex = -1;
@@ -74,7 +74,7 @@ void mousePositionCallback(GLFWwindow* window, double xpos, double ypos)
     }
 }*/
 
-int main()
+int main(int argc, char *argv[])
 {
     SR_TRACE("19 mod 9 = %d", 19 % 9);
     SR_TRACE("19 mod 4 = %d", 19 % 4);
@@ -137,7 +137,15 @@ int main()
 
     sr::srTexturePrintData(texture, 4, 4, sr::TextureFormat_RGBA8);*/
     sr::Texture texture = sr::srLoadTextureFromFile("G:\\repos\\software-rendering\\texture.png");
-    sr::Font font = sr::srLoadFont("G:\\repos\\software-rendering\\Roboto.ttf", 96);
+    sr::FontHandle font = sr::srLoadFont("G:\\repos\\software-rendering\\Roboto.ttf", 72);
+
+    float ddpi = 0.0f;
+    float hdpi = 0.0f;
+    float vdpi = 0.0f;
+
+    SDL_GetDisplayDPI(0, &ddpi, &hdpi, &vdpi);
+
+    SR_TRACE("DPI: %f, %f, %f", ddpi, hdpi, vdpi);
 
     float displayAngle = 0;
 
@@ -153,6 +161,12 @@ int main()
     glm::vec2 rectSize = {100.0f, 100.0f};
     glm::vec4 currentMeshColor(1.0f, 1.0f, 1.0f, 1.0f);
     glm::vec4 currentLineColor(1.0f, 0.0f, 0.0f, 1.0f);
+
+    char text[255] = "Franz jagt im komplett verwahrlosten Taxi quer durch Bayern. 1234567890";
+    float glyph_center = 0.5f;
+    float smoothing = 0.08f;
+    float glyph_offset = 0.04f;
+    float glyph_outline_width = 0.01f;
 
     bool drawArcs = false;
     int numArcSegments = 5;
@@ -185,29 +199,49 @@ int main()
         ImGui::Separator();
 
         ImGui::Checkbox("Draw Grid", &drawGrid);
-        ImGui::Separator();
 
-        ImGui::Checkbox("Draw Rect", &drawRect);
-        ImGui::Checkbox("Draw Rect lines", &drawRectLine);
-        ImGui::SliderFloat("Rect Rotation", &rectRotation, -360.0f, 360.0f);
-        ImGui::SliderFloat("Corner Radius", &cornerRadius, 0.0f, 1.0f);
-        ImGui::SliderFloat("Line Width", &lineWidth, 1.0f, 100.0f);
-        ImGui::SliderFloat2("Rect Size", glm::value_ptr(rectSize), 0.1f, 500.0f);
-        ImGui::ColorEdit4("LineColor", glm::value_ptr(currentLineColor));
-        ImGui::ColorEdit4("CurrentColor", glm::value_ptr(currentMeshColor));
+        if (ImGui::CollapsingHeader("Rect"))
+        {
+            ImGui::Checkbox("Draw Rect", &drawRect);
+            ImGui::Checkbox("Draw Rect lines", &drawRectLine);
+            ImGui::SliderFloat("Rect Rotation", &rectRotation, -360.0f, 360.0f);
+            ImGui::SliderFloat("Corner Radius", &cornerRadius, 0.0f, 1.0f);
+            ImGui::SliderFloat("Line Width", &lineWidth, 1.0f, 100.0f);
+            ImGui::SliderFloat2("Rect Size", glm::value_ptr(rectSize), 0.1f, 500.0f);
+            ImGui::ColorEdit4("LineColor", glm::value_ptr(currentLineColor));
+            ImGui::ColorEdit4("CurrentColor", glm::value_ptr(currentMeshColor));
+        }
+        if (ImGui::CollapsingHeader("Arcs"))
+        {
 
-        ImGui::Separator();
+            ImGui::Checkbox("Draw arcs", &drawArcs);
+            ImGui::SliderInt("Arc segments", &numArcSegments, 5, 75);
 
-        ImGui::Checkbox("Draw arcs", &drawArcs);
-        ImGui::SliderInt("Arc segments", &numArcSegments, 5, 75);
+            ImGui::Text("Current Angle %f", displayAngle);
+        }
+        if (ImGui::CollapsingHeader("Text"))
+        {
+            ImGui::InputTextMultiline("Content", text, 255);
 
-        ImGui::Text("Current Angle %f", displayAngle);
+            ImGui::DragFloat("Outline Width", &glyph_outline_width, 0.001f, 0.0f, 0.5f);
+            ImGui::Image((ImTextureID)(unsigned long long)sr::srFontGetTextureId(font), ImGui::GetContentRegionAvail());
+        }
         ImGui::End();
 
         ImGui::Render();
 
         // SR Rendering
-        sr::srNewFrame(frameWidth, frameHeight);
+        SDL_GL_GetDrawableSize(window, &draw_width, &draw_height);
+        SDL_GetWindowSize(window, &window_width, &window_height);
+
+        glm::vec2 half_size = glm::vec2(window_width, window_height) / 2.0f;
+
+        // Start new frame for rendering
+        sr::srNewFrame(draw_width, draw_height, window_width, window_height);
+
+        // Update text shader uniforms for testing
+        sr::srUseShader(sr::srGetContext()->DistanceFieldShader);
+        sr::srShaderSetUniform1f(sr::srGetContext()->DistanceFieldShader, "outlineWidth", glyph_outline_width);
 
         const glm::vec2 &halfRectSize = rectSize / 2.0f;
 
@@ -246,19 +280,22 @@ int main()
 
         if (drawRect)
         {
-            sr::srDrawRectangleFilledRC({0.0f, 0.0f}, {rectSize.x, rectSize.y}, rectSize / 2.0f, rectRotation, cornerRadius, sr::srGetColorFromFloat(currentMeshColor));
-            sr::srDrawRectangleRC({0.0f, 0.0f}, {rectSize.x, rectSize.y}, rectSize / 2.0f, rectRotation, cornerRadius, lineWidth, sr::srGetColorFromFloat(currentLineColor));
+            sr::srDrawRectangleFilledRC(half_size, {rectSize.x, rectSize.y}, rectSize / 2.0f, rectRotation, cornerRadius, sr::srGetColorFromFloat(currentMeshColor));
+            sr::srDrawRectangleRC(half_size, {rectSize.x, rectSize.y}, rectSize / 2.0f, rectRotation, cornerRadius, lineWidth, sr::srGetColorFromFloat(currentLineColor));
         }
 
         if (drawArcs)
         {
             sr::srBeginPath(sr::PathType_Stroke);
-            sr::srPathSetStrokeWidth(400.0f);
+            sr::srPathSetStrokeWidth(4.0f);
             sr::srPathSetStrokeColor(currentLineColor);
             // sr::srPathArc(glm::vec2(), 0.0f, 90.0f, 250, numArcSegments);
-            sr::srPathArc(glm::vec2(), 90.0f, 180.0f, 250, numArcSegments);
+            sr::srPathArc(half_size, 90.0f, 180.0f, 250, numArcSegments);
             sr::srEndPath();
         }
+
+        sr::srDrawRectangle(half_size, sr::srFontGetTextSize(font, text), {0.0f, sr::srFontGetLineTop(font)});
+        sr::srDrawText(font, text, half_size, sr::srGetColorFromFloat(currentLineColor), glyph_outline_width);
 
         /*sr::srBeginPath(sr::PathType_Stroke);
         sr::srPathSetStrokeWidth(lineWidth);
