@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
 
     sr::srTexturePrintData(texture, 4, 4, sr::TextureFormat_RGBA8);*/
     sr::Texture texture = sr::srLoadTextureFromFile("G:\\repos\\software-rendering\\texture.png");
-    sr::Font font = sr::srLoadFont("G:\\repos\\software-rendering\\Roboto.ttf", 72);
+    sr::FontHandle font = sr::srLoadFont("G:\\repos\\software-rendering\\Roboto.ttf", 72);
 
     float ddpi = 0.0f;
     float hdpi = 0.0f;
