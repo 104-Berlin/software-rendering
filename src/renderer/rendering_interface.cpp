@@ -1446,7 +1446,7 @@ namespace sr
     FT_Vector kerning{};
     FT_Get_Kerning(font->Face, c1, c2, FT_KERNING_DEFAULT, &kerning);
     *x = kerning.x >> 6;
-    *y = kerning.y;
+    *y = kerning.y >> 6;
   }
 
   bool FontManagerHasFontLoaded(FontHandle handle)
