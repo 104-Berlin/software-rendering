@@ -1492,7 +1492,11 @@ namespace sr
     Font result{};
     FontTextureInit(&result.Texture);
 
-    FT_New_Face(SRC->Libary, filePath, 0, &result.Face);
+    if (FT_New_Face(SRC->Libary, filePath, 0, &result.Face) != 0)
+    {
+      SR_TRACE("ERROR: Could not load font from file %s", filePath);
+      return -1;
+    }
     FT_Set_Char_Size(
         result.Face, // handle to face object
         0,           // char_width in 1/64 of points
@@ -1502,6 +1506,7 @@ namespace sr
     result.Size = size;
     result.LineHeight = result.Face->size->metrics.height / 64;
     result.LineTop = result.Face->size->metrics.ascender / 64;
+    result.LineBottom = result.Face->size->metrics.descender / 64;
     SR_TRACE("Loaded font. Line height = %d", result.LineHeight);
     // Load first 128 chars
     static const char *text = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ -_.:,;#'+*1234567890!\"§$%&/\\[{()}]@€";
@@ -1604,8 +1609,7 @@ namespace sr
       SR_TRACE("ERROR: Could not get line bottom. Font not found with handle %d!", handle);
       return 0;
     }
-    const Font *font = FontManagerGetFont(handle);
-    return font->LineTop + font->LineHeight;
+    return FontManagerGetFont(handle)->LineBottom;
   }
 
   R_API int srFontGetLineHeight(FontHandle handle)

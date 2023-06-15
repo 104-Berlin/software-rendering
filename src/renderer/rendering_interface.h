@@ -491,6 +491,7 @@ namespace sr
         int Size;
         int LineHeight;
         int LineTop;
+        int LineBottom;
         FT_Face Face;
         FontTexture Texture;
     };
@@ -508,7 +509,7 @@ namespace sr
     R_API int srFontGetLineHeight(FontHandle font);
 
     R_API int srFontGetSize(FontHandle font);
-    R_API const char* srFontGetName(FontHandle font);
+    R_API const char *srFontGetName(FontHandle font);
 
     R_API unsigned int srFontGetTextureId(FontHandle font);
 
