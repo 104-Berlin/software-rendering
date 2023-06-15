@@ -495,12 +495,24 @@ namespace sr
         FontTexture Texture;
     };
 
-    R_API Font srLoadFont(const char *filePath, unsigned int size = 24);
-    R_API void srUnloadFont(Font *font);
+    typedef unsigned int FontHandle;
 
-    R_API int srFontGetTextWidth(Font font, const char *text);
+    R_API FontHandle srLoadFont(const char *filePath, unsigned int size = 24);
+    R_API void srUnloadFont(FontHandle font);
 
-    R_API void srDrawText(Font font, const char *text, const glm::vec2 &position, Color color = 0xff000000, float outline_thickness = 0.0f);
+    R_API int srFontGetTextWidth(FontHandle font, const char *text);
+    R_API int srFontGetTextHeight(FontHandle font, const char *text);
+    R_API glm::ivec2 srFontGetTextSize(FontHandle font, const char *text);
+    R_API int srFontGetLineTop(FontHandle font);
+    R_API int srFontGetLineBottom(FontHandle font);
+    R_API int srFontGetLineHeight(FontHandle font);
+
+    R_API int srFontGetSize(FontHandle font);
+    R_API const char* srFontGetName(FontHandle font);
+
+    R_API unsigned int srFontGetTextureId(FontHandle font);
+
+    R_API void srDrawText(FontHandle font, const char *text, const glm::vec2 &position, Color color = 0xff000000, float outline_thickness = 0.0f);
 
     R_API void srDrawCircle(const glm::vec2 &center, float radius, Color color = 0xffffffff, unsigned int segmentCount = 36);
     R_API void srDrawCircleOutline(const glm::vec2 &center, float radius, float thickness, Color color = 0xffffffff, unsigned int segmentCount = 36);
@@ -514,6 +526,7 @@ namespace sr
         std::vector<Mesh> AutoReleaseMeshes;
         glm::mat4 CurrentProjection;
         FT_Library Libary;
+        std::unordered_map<FontHandle, Font> LoadedFonts;
     };
 
 }

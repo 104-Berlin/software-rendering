@@ -166,7 +166,7 @@ int main(int argc, char *argv[])
     float glyph_center = 0.5f;
     float smoothing = 0.08f;
     float glyph_offset = 0.04f;
-    float glyph_outline_width = 0.4f;
+    float glyph_outline_width = 0.01f;
 
     bool drawArcs = false;
     int numArcSegments = 5;
@@ -224,7 +224,7 @@ int main(int argc, char *argv[])
             ImGui::InputTextMultiline("Content", text, 255);
 
             ImGui::DragFloat("Outline Width", &glyph_outline_width, 0.001f, 0.0f, 0.5f);
-            ImGui::Image((ImTextureID)font.Texture.Texture.ID, ImGui::GetContentRegionAvail());
+            ImGui::Image((ImTextureID)(unsigned long long)sr::srFontGetTextureId(font), ImGui::GetContentRegionAvail());
         }
         ImGui::End();
 
@@ -294,7 +294,7 @@ int main(int argc, char *argv[])
             sr::srEndPath();
         }
 
-        sr::srDrawRectangle(half_size, {sr::srFontGetTextWidth(font, text), 10.0f}, {0.0f, 0.0f});
+        sr::srDrawRectangle(half_size, sr::srFontGetTextSize(font, text), {0.0f, sr::srFontGetLineTop(font)});
         sr::srDrawText(font, text, half_size, sr::srGetColorFromFloat(currentLineColor), glyph_outline_width);
 
         /*sr::srBeginPath(sr::PathType_Stroke);

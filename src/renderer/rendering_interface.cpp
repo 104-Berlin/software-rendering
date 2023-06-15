@@ -1422,13 +1422,13 @@ namespace sr
     result->CharMap[glyph->glyph_index] = res;
   }
 
-  const FontGlyph *FontTextureGetGlyph(Font *font, char c)
+  const FontGlyph *FontTextureGetGlyph(const Font *font, char c)
   {
     unsigned int char_code = FT_Get_Char_Index(font->Face, c);
 
     if (font->Texture.CharMap.find(char_code) != font->Texture.CharMap.end())
     {
-      return &font->Texture.CharMap[char_code];
+      return &font->Texture.CharMap.at(char_code);
     }
     return nullptr;
   }
@@ -1449,23 +1449,60 @@ namespace sr
     *y = kerning.y;
   }
 
-  R_API Font srLoadFont(const char *filePath, unsigned int size)
+  bool FontManagerHasFontLoaded(FontHandle handle)
+  {
+    return SRC->LoadedFonts.find(handle) != SRC->LoadedFonts.end();
+  }
+
+  const Font *FontManagerGetFont(FontHandle handle)
+  {
+    if (!FontManagerHasFontLoaded(handle))
+    {
+      return nullptr;
+    }
+    return &SRC->LoadedFonts.at(handle);
+  }
+
+  FontHandle FontManagerLoadFont(Font font)
+  {
+    FontHandle new_handle = SRC->LoadedFonts.size();
+    while (FontManagerHasFontLoaded(new_handle))
+    {
+      new_handle++;
+    }
+    SRC->LoadedFonts[new_handle] = font;
+    return new_handle;
+  }
+
+  void FontManagerUnloadFont(FontHandle handle)
+  {
+    if (!FontManagerHasFontLoaded(handle))
+    {
+      SR_TRACE("ERROR: Cant unload font with handle (%d). Font does not exist!", handle);
+      return;
+    }
+    Font &font = SRC->LoadedFonts.at(handle);
+    delete font.Face;
+    FontTextureUnload(&font.Texture);
+    SRC->LoadedFonts.erase(handle);
+  }
+
+  R_API FontHandle srLoadFont(const char *filePath, unsigned int size)
   {
     Font result{};
     FontTextureInit(&result.Texture);
 
     FT_New_Face(SRC->Libary, filePath, 0, &result.Face);
     FT_Set_Char_Size(
-        result.Face, /* handle to face object         */
-        0,           /* char_width in 1/64 of points  */
-        size * 64,   /* char_height in 1/64 of points */
-        96,          /* horizontal device resolution  */
+        result.Face, // handle to face object
+        0,           // char_width in 1/64 of points
+        size * 64,   // char_height in 1/64 of points
+        96,          // horizontal device resolution
         96);
-
     result.Size = size;
-    result.LineHeight = result.Face->height / 64;
-    result.LineTop = result.Face->ascender;
-
+    result.LineHeight = result.Face->size->metrics.height / 64;
+    result.LineTop = result.Face->size->metrics.ascender / 64;
+    SR_TRACE("Loaded font. Line height = %d", result.LineHeight);
     // Load first 128 chars
     static const char *text = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ -_.:,;#'+*1234567890!\"§$%&/\\[{()}]@€";
     for (char c = 0; c < strlen(text); c++)
@@ -1475,16 +1512,22 @@ namespace sr
 
     srTextureSetData(result.Texture.Texture, FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, FONT_TEXTURE_DEPTH == 1 ? TextureFormat_R8 : TextureFormat_RGB8, (unsigned char *)result.Texture.ImageData);
 
-    return result;
+    return FontManagerLoadFont(result);
   }
 
-  R_API void srUnloadFont(Font *font)
+  R_API void srUnloadFont(FontHandle handle)
   {
-    FontTextureUnload(&font->Texture);
+    FontManagerUnloadFont(handle);
   }
 
-  R_API int srFontGetTextWidth(Font font, const char *text)
+  R_API int srFontGetTextWidth(FontHandle handle, const char *text)
   {
+    if (!FontManagerHasFontLoaded(handle))
+    {
+      SR_TRACE("ERROR: Could not get line height. Font not found with handle %d!", handle);
+      return 0;
+    }
+    const Font &font = *FontManagerGetFont(handle);
     int max_line_width = 0;
     int current_line_width = 0;
 
@@ -1509,7 +1552,7 @@ namespace sr
           FT_Get_Kerning(font.Face, prev, char_index, FT_KERNING_DEFAULT, &kerning);
           current_line_width += (kerning.x >> 6);
         }
-        current_line_width += glyph->Offset.x + glyph->advance;
+        current_line_width += glyph->advance;
       }
     }
 
@@ -1518,8 +1561,106 @@ namespace sr
     return max_line_width;
   }
 
-  R_API void srDrawText(Font font, const char *text, const glm::vec2 &position, Color color, float outline_thickness)
+  R_API int srFontGetTextHeight(FontHandle font, const char *text)
   {
+    size_t str_len = strlen(text);
+    if (str_len == 0)
+    {
+      return 0;
+    }
+    int line_count = 1;
+    for (size_t i = 0; i < str_len; i++)
+    {
+      if (text[i] == '\n')
+      {
+        line_count++;
+      }
+    }
+
+    return sr::srFontGetLineHeight(font) * line_count;
+  }
+
+  R_API glm::ivec2 srFontGetTextSize(FontHandle handle, const char *text)
+  {
+    return {
+        srFontGetTextWidth(handle, text),
+        srFontGetTextHeight(handle, text)};
+  }
+
+  R_API int srFontGetLineTop(FontHandle handle)
+  {
+    if (!FontManagerHasFontLoaded(handle))
+    {
+      SR_TRACE("ERROR: Could not get line top. Font not found with handle %d!", handle);
+      return 0;
+    }
+    return FontManagerGetFont(handle)->LineTop;
+  }
+
+  R_API int srFontGetLineBottom(FontHandle handle)
+  {
+    if (!FontManagerHasFontLoaded(handle))
+    {
+      SR_TRACE("ERROR: Could not get line bottom. Font not found with handle %d!", handle);
+      return 0;
+    }
+    const Font *font = FontManagerGetFont(handle);
+    return font->LineTop + font->LineHeight;
+  }
+
+  R_API int srFontGetLineHeight(FontHandle handle)
+  {
+    if (!FontManagerHasFontLoaded(handle))
+    {
+      SR_TRACE("ERROR: Could not get line height. Font not found with handle %d!", handle);
+      return 0;
+    }
+    return FontManagerGetFont(handle)->LineHeight;
+  }
+
+  R_API int srFontGetSize(FontHandle handle)
+  {
+    if (!FontManagerHasFontLoaded(handle))
+    {
+      SR_TRACE("ERROR: Could not get font size. Font not found with handle %d!", handle);
+      return 0;
+    }
+    return FontManagerGetFont(handle)->Size;
+  }
+
+  R_API const char *srFontGetName(FontHandle handle)
+  {
+    if (!FontManagerHasFontLoaded(handle))
+    {
+      SR_TRACE("ERROR: Could not get font size. Font not found with handle %d!", handle);
+      return 0;
+    }
+    return FontManagerGetFont(handle)->Face->family_name;
+  }
+
+  R_API unsigned int srFontGetTextureId(FontHandle handle)
+  {
+    const Font *font_ptr = FontManagerGetFont(handle);
+    if (!font_ptr)
+    {
+      SR_TRACE("ERROR: Could not get line height. Font not found with handle %d!", handle);
+      return 0;
+    }
+    const Font &font = *font_ptr;
+
+    return font.Texture.Texture.ID;
+  }
+
+  R_API void srDrawText(FontHandle handle, const char *text, const glm::vec2 &position, Color color, float outline_thickness)
+  {
+    const Font *font_ptr = FontManagerGetFont(handle);
+    if (!font_ptr)
+    {
+      SR_TRACE("ERROR: Could not draw text. Font not found with handle %d!", handle);
+      return;
+    }
+    const Font &font = *font_ptr;
+
     const size_t textLen = strlen(text);
 
     srBegin(EBatchDrawMode::QUADS);
@@ -1543,7 +1684,7 @@ namespace sr
         SR_TRACE("new line: %i", font.LineHeight);
         continue;
       }
-      const FontGlyph *glyph = FontTextureGetGlyph(&font, c);
+      const FontGlyph *glyph = FontTextureGetGlyph(font_ptr, c);
       if (glyph)
       {
         unsigned int char_index = glyph->CharCode;
