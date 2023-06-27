@@ -16,10 +16,10 @@ static bool ControllPressed = false;
 
 void drawVector(const glm::vec2 &vector, const glm::vec2 &offset = glm::vec2(0.0f))
 {
-    sr::srColor4f(0.3f, 0.3f, 0.3f, 1.0f);
+    sr::srColor14f(0.3f, 0.3f, 0.3f, 1.0f);
     sr::srVertex2f(offset);
 
-    sr::srColor4f(0.8f, 0.3f, 0.3f, 1.0f);
+    sr::srColor14f(0.8f, 0.3f, 0.3f, 1.0f);
     sr::srVertex2f(vector + offset);
 }
 
@@ -136,8 +136,8 @@ int main(int argc, char *argv[])
     sr::srTextureSetData(texture, 4, 4, sr::TextureFormat_RGBA8, (unsigned char*)data);
 
     sr::srTexturePrintData(texture, 4, 4, sr::TextureFormat_RGBA8);*/
-    sr::Texture texture = sr::srLoadTextureFromFile("G:\\repos\\software-rendering\\texture.png");
-    sr::FontHandle font = sr::srLoadFont("G:\\repos\\software-rendering\\Roboto.ttf", 48);
+    // sr::Texture texture = sr::srLoadTextureFromFile("G:\\repos\\software-rendering\\texture.png");
+    sr::FontHandle font = sr::srLoadFont("/Users/lucaherzke/Documents/DEV/software-rendering/Roboto.ttf", 24);
 
     float ddpi = 0.0f;
     float hdpi = 0.0f;

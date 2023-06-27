@@ -357,7 +357,8 @@ namespace sr
             glm::vec3 Pos = glm::vec3();
             glm::vec3 Normal = glm::vec3(0.0f, 0.0f, 1.0f);
             glm::vec2 UV = glm::vec2();
-            Color Color = 0xffffffff;
+            Color Color1 = 0xffffffff;
+            Color Color2 = 0x00000000;
         };
 
         struct Buffer
@@ -385,7 +386,8 @@ namespace sr
 
         glm::vec3 CurrentNormal;
         glm::vec2 CurrentTexCoord;
-        Color CurrentColor;
+        Color CurrentColor1;
+        Color CurrentColor2;
 
         // Path builder
         PathBuilder Path;
@@ -410,11 +412,16 @@ namespace sr
     R_API void srVertex2f(const glm::vec2 &vertex);
     R_API void srNormal3f(float x, float y, float z);
     R_API void srNormal3f(const glm::vec3 &normal);
-    R_API void srColor1c(Color color);
-    R_API void srColor3f(float r, float g, float b);
-    R_API void srColor3f(const glm::vec3 &color);
-    R_API void srColor4f(float r, float g, float b, float a);
-    R_API void srColor4f(const glm::vec4 &color);
+    R_API void srColor11c(Color color);
+    R_API void srColor13f(float r, float g, float b);
+    R_API void srColor13f(const glm::vec3 &color);
+    R_API void srColor14f(float r, float g, float b, float a);
+    R_API void srColor14f(const glm::vec4 &color);
+    R_API void srColor21c(Color color);
+    R_API void srColor23f(float r, float g, float b);
+    R_API void srColor23f(const glm::vec3 &color);
+    R_API void srColor24f(float r, float g, float b, float a);
+    R_API void srColor24f(const glm::vec4 &color);
     R_API void srTextureCoord2f(float u, float v);
     R_API void srTextureCoord2f(const glm::vec2 &uv);
     R_API void srEnd();
@@ -513,7 +520,7 @@ namespace sr
 
     R_API unsigned int srFontGetTextureId(FontHandle font);
 
-    R_API void srDrawText(FontHandle font, const char *text, const glm::vec2 &position, Color color = 0xff000000, float outline_thickness = 0.0f);
+    R_API void srDrawText(FontHandle font, const char *text, const glm::vec2 &position, Color color = 0xff000000, float outline_thickness = 0.0f, Color outline_color = 0xff000000);
 
     R_API void srDrawCircle(const glm::vec2 &center, float radius, Color color = 0xffffffff, unsigned int segmentCount = 36);
     R_API void srDrawCircleOutline(const glm::vec2 &center, float radius, float thickness, Color color = 0xffffffff, unsigned int segmentCount = 36);

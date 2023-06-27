@@ -22,10 +22,12 @@ const char *basicMeshVertexShader = R"(
   layout(location = 1) in vec3 vNormal;
   layout(location = 2) in vec2 vTexCoord;
   layout(location = 3) in vec4 vColor;
+  layout(location = 4) in vec4 vColor2;
 
   uniform mat4 ProjectionMatrix = mat4(1.0);
 
   out vec4 Color;
+  out vec4 Color2;
   out vec2 TexCoord;
   out vec3 Normal;
 
@@ -33,6 +35,7 @@ const char *basicMeshVertexShader = R"(
   void main()
   {
     Color = vColor;
+    Color2 = vColor2;
     TexCoord = vTexCoord;
     Normal = vNormal;
     gl_Position = ProjectionMatrix * vec4(vPosition, 1.0);
@@ -70,17 +73,17 @@ const char *distanceFieldFragmentShader = R"(
   layout(location = 0) out vec4 fragColor;
 
   in vec4 Color;
+  in vec4 Color2;
   in vec2 TexCoord;
   in vec3 Normal; // use x for border width
 
   uniform sampler2D Texture;
 
 
-  vec3 glyph_color    = vec3(0.0,0.0,0.0);
   vec3 outline_color  = vec3(0.2,0.2,0.7);
 
-  const float glyph_center   = 0.5;
-  const float smoothing = 0.04;
+  uniform float glyph_center   = 0.5;
+  uniform float smoothing = 0.04;
   //uniform float outline_center = 0.5 - outlineWidth;
 
   void main() {
@@ -94,19 +97,19 @@ const char *distanceFieldFragmentShader = R"(
     if (Normal.x < 0.01) {
       float alpha = smoothstep(glyph_center - smoothing, glyph_center + smoothing, d);
 
-      result = vec4(glyph_color, alpha);
+      result = vec4(Color.xyz, alpha);
     }
     else {
       float alpha = smoothstep(outlineWidth - smoothing, outlineWidth + smoothing, d);
       float outline_factor = smoothstep(glyph_center, glyph_center + smoothing, d);
 
-      result = vec4(mix(outline_color, glyph_color, outline_factor), alpha);
+      result = vec4(mix(Color2.xyz, Color.xyz, outline_factor), alpha);
     }
 
     // Drop Shadow
     //float d2 = texture(Texture, TexCoord.st+vec2(0.01, 0.01)).r + smoothing;
     
-    //fragColor = vec4(mix(glyph_color, outline_color, border), alpha);
+    //fragColor = vec4(mix(Color.xyz, Color2.xyz, border), alpha);
 
 
 
@@ -1077,11 +1080,14 @@ namespace sr
     srEnableVertexAttribute(2);
     srSetVertexAttribute(2, 2, GL_FLOAT, GL_FALSE, sizeof(RenderBatch::Vertex), (const void *)offsetof(RenderBatch::Vertex, UV));
     srEnableVertexAttribute(3);
-    srSetVertexAttribute(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(RenderBatch::Vertex), (const void *)offsetof(RenderBatch::Vertex, Color));
+    srSetVertexAttribute(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(RenderBatch::Vertex), (const void *)offsetof(RenderBatch::Vertex, Color1));
+    srEnableVertexAttribute(4);
+    srSetVertexAttribute(4, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(RenderBatch::Vertex), (const void *)offsetof(RenderBatch::Vertex, Color2));
     glBinding.VBOs.push_back({{VertexArrayLayoutElement(EVertexAttributeType::FLOAT3, 0),
                                VertexArrayLayoutElement(EVertexAttributeType::FLOAT3, 1),
                                VertexArrayLayoutElement(EVertexAttributeType::FLOAT2, 2),
-                               VertexArrayLayoutElement(EVertexAttributeType::BYTE4, 3)},
+                               VertexArrayLayoutElement(EVertexAttributeType::BYTE4, 3),
+                               VertexArrayLayoutElement(EVertexAttributeType::BYTE4, 4)},
                               vbo});
 
     unsigned int ibo = srLoadElementBuffer(result.DrawBuffer.Indices, bufferSize * 6 * sizeof(unsigned int));
@@ -1205,7 +1211,8 @@ namespace sr
       rb.DrawCalls[rb.CurrentDraw].VertexAlignment = 0;
       rb.DrawCalls[rb.CurrentDraw].Material = {0};
 
-      rb.CurrentColor = 0xffffffff;
+      rb.CurrentColor1 = 0xffffffff;
+      rb.CurrentColor2 = 0x00000000;
       rb.CurrentNormal = glm::vec3(0.0f, 0.0f, -1.0f);
       rb.CurrentTexCoord = glm::vec2(0.0f);
     }
@@ -1223,7 +1230,8 @@ namespace sr
     SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter].Pos = vertex;
     SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter].UV = SRC->RenderBatch.CurrentTexCoord;
     SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter].Normal = SRC->RenderBatch.CurrentNormal;
-    SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter].Color = SRC->RenderBatch.CurrentColor;
+    SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter].Color1 = SRC->RenderBatch.CurrentColor1;
+    SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter].Color2 = SRC->RenderBatch.CurrentColor2;
 
     SRC->RenderBatch.VertexCounter++;
     SRC->RenderBatch.DrawCalls[SRC->RenderBatch.CurrentDraw].VertexCount++;
@@ -1249,29 +1257,54 @@ namespace sr
     SRC->RenderBatch.CurrentNormal = normal;
   }
 
-  R_API void srColor3f(float r, float g, float b)
+  R_API void srColor13f(float r, float g, float b)
   {
-    srColor4f(r, g, b, 1.0f);
+    srColor14f(r, g, b, 1.0f);
   }
 
-  R_API void srColor3f(const glm::vec3 &color)
+  R_API void srColor13f(const glm::vec3 &color)
   {
-    srColor4f({color.x, color.y, color.z, 1.0f});
+    srColor14f({color.x, color.y, color.z, 1.0f});
   }
 
-  R_API void srColor4f(float r, float g, float b, float a)
+  R_API void srColor14f(float r, float g, float b, float a)
   {
-    SRC->RenderBatch.CurrentColor = srGetColorFromFloat(r, g, b, a);
+    SRC->RenderBatch.CurrentColor1 = srGetColorFromFloat(r, g, b, a);
   }
 
-  R_API void srColor4f(const glm::vec4 &color)
+  R_API void srColor14f(const glm::vec4 &color)
   {
-    SRC->RenderBatch.CurrentColor = srGetColorFromFloat(color);
+    SRC->RenderBatch.CurrentColor1 = srGetColorFromFloat(color);
   }
 
-  R_API void srColor1c(Color color)
+  R_API void srColor11c(Color color)
   {
-    SRC->RenderBatch.CurrentColor = color;
+    SRC->RenderBatch.CurrentColor1 = color;
+  }
+
+  R_API void srColor23f(float r, float g, float b)
+  {
+    srColor24f(r, g, b, 1.0f);
+  }
+
+  R_API void srColor23f(const glm::vec3 &color)
+  {
+    srColor24f({color.x, color.y, color.z, 1.0f});
+  }
+
+  R_API void srColor24f(float r, float g, float b, float a)
+  {
+    SRC->RenderBatch.CurrentColor2 = srGetColorFromFloat(r, g, b, a);
+  }
+
+  R_API void srColor24f(const glm::vec4 &color)
+  {
+    SRC->RenderBatch.CurrentColor2 = srGetColorFromFloat(color);
+  }
+
+  R_API void srColor21c(Color color)
+  {
+    SRC->RenderBatch.CurrentColor2 = color;
   }
 
   R_API void srTextureCoord2f(float u, float v)
@@ -1326,7 +1359,7 @@ namespace sr
     else
     {
       srBegin(EBatchDrawMode::QUADS);
-      srColor1c(style.FillColor);
+      srColor11c(style.FillColor);
 
       srVertex2f(corners.TopLeft);
       srVertex2f(corners.TopRight);
@@ -1657,7 +1690,7 @@ namespace sr
     return font.Texture.Texture.ID;
   }
 
-  R_API void srDrawText(FontHandle handle, const char *text, const glm::vec2 &position, Color color, float outline_thickness)
+  R_API void srDrawText(FontHandle handle, const char *text, const glm::vec2 &position, Color color, float outline_thickness, Color outline_color)
   {
     const Font *font_ptr = FontManagerGetFont(handle);
     if (!font_ptr)
@@ -1670,7 +1703,8 @@ namespace sr
     const size_t textLen = strlen(text);
 
     srBegin(EBatchDrawMode::QUADS);
-    srColor1c(color);
+    srColor11c(color);
+    srColor21c(outline_color);
     srPushMaterial({font.Texture.Texture, SRC->DistanceFieldShader});
 
     float currentDepth = SRC->RenderBatch.CurrentDepth;
@@ -1763,7 +1797,7 @@ namespace sr
     glm::vec2 lastPosition = glm::vec2(radius * sinf(startAngle), radius * sinf(startAngle));
 
     srBegin(TRIANGLES);
-    srColor1c(color);
+    srColor11c(color);
 
     float currentAngle = startAngle + degIncrease;
     for (unsigned int i = 0; i <= segmentCount; i++)
@@ -2024,7 +2058,7 @@ namespace sr
     }
 
     srBegin(TRIANGLES);
-    srColor1c(currentStyle.StrokeColor);
+    srColor11c(currentStyle.StrokeColor);
 
     glm::vec2 lastTop{};
     glm::vec2 lastBottom{};
@@ -2111,7 +2145,7 @@ namespace sr
         {
           currentStyle = pb.Styles[currentStyleIndex].second;
           nextStyleChange += pb.Styles[currentStyleIndex].first;
-          srColor1c(currentStyle.StrokeColor);
+          srColor11c(currentStyle.StrokeColor);
         }
       }
     }
@@ -2138,7 +2172,7 @@ namespace sr
     }
 
     srBegin(TRIANGLES);
-    srColor1c(currentStyle.FillColor);
+    srColor11c(currentStyle.FillColor);
 
     for (size_t i = 1; i < count; i++)
     {
@@ -2154,7 +2188,7 @@ namespace sr
         {
           currentStyle = pb.Styles[currentStyleIndex].second;
           nextStyleChange += pb.Styles[currentStyleIndex].first;
-          srColor1c(currentStyle.FillColor);
+          srColor11c(currentStyle.FillColor);
         }
       }
     }
