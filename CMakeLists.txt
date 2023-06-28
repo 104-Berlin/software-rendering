@@ -19,12 +19,42 @@ add_library(ImGui STATIC deps/imgui/imgui.cpp
 
 target_include_directories(ImGui PUBLIC deps/imgui)
 
-add_executable(SoftwareRendering main.cpp
-    deps/imgui/backends/imgui_impl_opengl3.cpp
-    deps/imgui/backends/imgui_impl_sdl.cpp)
 
+add_executable(SoftwareRendering    main.cpp
+                            deps/imgui/backends/imgui_impl_opengl3.cpp
+                            deps/imgui/backends/imgui_impl_sdl.cpp)
+                            
 target_link_libraries(SoftwareRendering srRenderer SDL2 SDL2main ImGui)
 target_include_directories(SoftwareRendering SYSTEM PUBLIC deps/sdl2/include)
 
 set_target_properties(SoftwareRendering
-    PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+                PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
+
+if (DEFINED EMSCRIPTEN)
+    #set(CMAKE_EXECUTABLE_SUFFIX ".html")
+    add_compile_definitions("__EMSCRIPTEN__")
+    target_link_options(SoftwareRendering PRIVATE
+        "-sMODULARIZE=1"
+        "-sEXPORT_NAME='Main'"
+        "-sINVOKE_RUN=0"
+        "-sDISABLE_DEPRECATED_FIND_EVENT_TARGET_BEHAVIOR=0"
+        "-sEXPORTED_FUNCTIONS=['_main']"
+        "-sEXPORTED_RUNTIME_METHODS=['callMain', 'ccall', 'cwrap']"
+        "-sFORCE_FILESYSTEM=1"
+        "-sUSE_SDL=2"
+        "-sALLOW_MEMORY_GROWTH=1" 
+        "-sASYNCIFY"
+        "-O2"
+    )
+    add_custom_command(
+        TARGET srRenderer POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy
+                ${CMAKE_SOURCE_DIR}/index.html
+                ${CMAKE_BINARY_DIR}/index.html
+        )
+else()
+endif()
+
+
+target_include_directories(ImGui PUBLIC deps/imgui)
