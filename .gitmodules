@@ -7,9 +7,6 @@
 [submodule "src/renderer/freetype"]
 	path = src/renderer/freetype
 	url = https://github.com/freetype/freetype.git
-[submodule "src/renderer/freetype-gl"]
-	path = src/renderer/freetype-gl
-	url = https://github.com/J4m3s00/freetype-gl.git
 [submodule "deps/sdl2"]
 	path = deps/sdl2
 	url = https://github.com/libsdl-org/SDL.git

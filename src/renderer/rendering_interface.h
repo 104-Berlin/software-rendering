@@ -17,6 +17,7 @@ namespace sr
     R_API void srInitGL();
 
     R_API void srInitContext(SRContext *context);
+    R_API SRContext *srGetContext();
 
     R_API void srNewFrame(int frameWidth, int frameHeight, int windowWidth, int windowHeight);
     R_API void srEndFrame();
@@ -158,6 +159,7 @@ namespace sr
     R_API unsigned int srShaderGetUniformLocation(const char *name, Shader shader, bool show_err = false);
     R_API void srShaderSetUniform1b(Shader shader, const char *name, bool value);
     R_API void srShaderSetUniform1i(Shader shader, const char *name, int value);
+    R_API void srShaderSetUniform1f(Shader shader, const char *name, float value);
     R_API void srShaderSetUniform2f(Shader shader, const char *name, const glm::vec2 &value);
     R_API void srShaderSetUniform3f(Shader shader, const char *name, const glm::vec3 &value);
     R_API void srShaderSetUniformMat4(Shader shader, const char *name, const glm::mat4 &value);
@@ -355,7 +357,8 @@ namespace sr
             glm::vec3 Pos = glm::vec3();
             glm::vec3 Normal = glm::vec3(0.0f, 0.0f, 1.0f);
             glm::vec2 UV = glm::vec2();
-            Color Color = 0xffffffff;
+            Color Color1 = 0xffffffff;
+            Color Color2 = 0x00000000;
         };
 
         struct Buffer
@@ -383,7 +386,8 @@ namespace sr
 
         glm::vec3 CurrentNormal;
         glm::vec2 CurrentTexCoord;
-        Color CurrentColor;
+        Color CurrentColor1;
+        Color CurrentColor2;
 
         // Path builder
         PathBuilder Path;
@@ -406,11 +410,18 @@ namespace sr
     R_API void srVertex3f(const glm::vec3 &vertex);
     R_API void srVertex2f(float x, float y);
     R_API void srVertex2f(const glm::vec2 &vertex);
-    R_API void srColor1c(Color color);
-    R_API void srColor3f(float r, float g, float b);
-    R_API void srColor3f(const glm::vec3 &color);
-    R_API void srColor4f(float r, float g, float b, float a);
-    R_API void srColor4f(const glm::vec4 &color);
+    R_API void srNormal3f(float x, float y, float z);
+    R_API void srNormal3f(const glm::vec3 &normal);
+    R_API void srColor11c(Color color);
+    R_API void srColor13f(float r, float g, float b);
+    R_API void srColor13f(const glm::vec3 &color);
+    R_API void srColor14f(float r, float g, float b, float a);
+    R_API void srColor14f(const glm::vec4 &color);
+    R_API void srColor21c(Color color);
+    R_API void srColor23f(float r, float g, float b);
+    R_API void srColor23f(const glm::vec3 &color);
+    R_API void srColor24f(float r, float g, float b, float a);
+    R_API void srColor24f(const glm::vec4 &color);
     R_API void srTextureCoord2f(float u, float v);
     R_API void srTextureCoord2f(const glm::vec2 &uv);
     R_API void srEnd();
@@ -461,17 +472,55 @@ namespace sr
     R_API void srDrawGrid(const glm::vec2 &position, unsigned int columns, unsigned int rows, float cellSizeX, float cellSizeY);
 
     // Fonts
-    struct Font
+
+    struct FontGlyph
     {
-        ftgl::texture_font_t *Font;
-        ftgl::texture_atlas_t *Atlas;
-        float Size;
+        glm::ivec2 Size;
+        glm::ivec2 Offset;
+        int advance;
+        float u0;
+        float v0;
+        float u1;
+        float v1;
+        unsigned int CharCode;
+    };
+    struct FontTexture
+    {
+        Texture Texture;
+        glm::ivec2 Size;
+        uint8_t *ImageData;
+        void *ShelfPack; // For packing the glyphs
+        std::unordered_map<unsigned int, FontGlyph> CharMap;
     };
 
-    R_API Font srLoadFont(const char *filePath, float size = 24.0f);
-    R_API void srUnloadFont(Font *font);
+    struct Font
+    {
+        int Size;
+        int LineHeight;
+        int LineTop;
+        int LineBottom;
+        FT_Face Face;
+        FontTexture Texture;
+    };
 
-    R_API void srDrawText(Font font, const char *text, const glm::vec2 &position, Color color = 0xff000000, bool fillRects = false);
+    typedef unsigned int FontHandle;
+
+    R_API FontHandle srLoadFont(const char *filePath, unsigned int size = 24);
+    R_API void srUnloadFont(FontHandle font);
+
+    R_API int srFontGetTextWidth(FontHandle font, const char *text);
+    R_API int srFontGetTextHeight(FontHandle font, const char *text);
+    R_API glm::ivec2 srFontGetTextSize(FontHandle font, const char *text);
+    R_API int srFontGetLineTop(FontHandle font);
+    R_API int srFontGetLineBottom(FontHandle font);
+    R_API int srFontGetLineHeight(FontHandle font);
+
+    R_API int srFontGetSize(FontHandle font);
+    R_API const char *srFontGetName(FontHandle font);
+
+    R_API unsigned int srFontGetTextureId(FontHandle font);
+
+    R_API void srDrawText(FontHandle font, const char *text, const glm::vec2 &position, Color color = 0xff000000, float outline_thickness = 0.0f, Color outline_color = 0xff000000);
 
     R_API void srDrawCircle(const glm::vec2 &center, float radius, Color color = 0xffffffff, unsigned int segmentCount = 36);
     R_API void srDrawCircleOutline(const glm::vec2 &center, float radius, float thickness, Color color = 0xffffffff, unsigned int segmentCount = 36);
@@ -485,6 +534,7 @@ namespace sr
         std::vector<Mesh> AutoReleaseMeshes;
         glm::mat4 CurrentProjection;
         FT_Library Libary;
+        std::unordered_map<FontHandle, Font> LoadedFonts;
     };
 
 }
