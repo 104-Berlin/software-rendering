@@ -232,7 +232,7 @@ namespace sr
     {
       SRC->DistanceFieldShader = srLoadShader(basicMeshVertexShader, distanceFieldFragmentShader);
     }
-    context->RenderBatch = srLoadRenderBatch(5000);
+    context->MainRenderBatch = srLoadRenderBatch(5000);
     FT_Init_FreeType(&context->Libary);
   }
 
@@ -248,12 +248,12 @@ namespace sr
     srClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     SRC->CurrentProjection = glm::orthoLH(0.0f, (float)windowWidth, (float)windowHeight, 0.0f, -1.0f, 1.0f);
-    SRC->RenderBatch.CurrentDepth = 0.0f;
+    SRC->MainRenderBatch.CurrentDepth = 0.0f;
   }
 
   R_API void srEndFrame()
   {
-    srDrawRenderBatch(&SRC->RenderBatch);
+    srDrawRenderBatch(&SRC->MainRenderBatch);
   }
 
   R_API void srClear(int mask)
@@ -678,14 +678,14 @@ namespace sr
 
   R_API void srPushMaterial(const Material &mat)
   {
-    Texture currentDrawTexture = SRC->RenderBatch.DrawCalls[SRC->RenderBatch.CurrentDraw].Material.Texture;
-    if (currentDrawTexture.ID != 0 && currentDrawTexture.ID != mat.Texture.ID)
+    Texture currentDrawTexture = SRC->MainRenderBatch.DrawCalls[SRC->MainRenderBatch.CurrentDraw].Mat.Texture0;
+    if (currentDrawTexture.ID != 0 && currentDrawTexture.ID != mat.Texture0.ID)
     {
       // We push a texture where we already have one
       // We override the last pushed for now. This should not happen
       // We warn here for now
     }
-    SRC->RenderBatch.DrawCalls[SRC->RenderBatch.CurrentDraw].Material = mat;
+    SRC->MainRenderBatch.DrawCalls[SRC->MainRenderBatch.CurrentDraw].Mat = mat;
   }
 
   // Vertex Arrays
@@ -1110,7 +1110,7 @@ namespace sr
   R_API bool srCheckRenderBatchLimit(unsigned int numVerts)
   {
     bool overflow = false;
-    RenderBatch &rb = SRC->RenderBatch;
+    RenderBatch &rb = SRC->MainRenderBatch;
 
     if (rb.VertexCounter + numVerts >= rb.DrawBuffer.ElementCount)
     {
@@ -1150,19 +1150,19 @@ namespace sr
     {
       RenderBatch::DrawCall &drawCall = batch->DrawCalls[i];
       Shader shader = SRC->DefaultShader;
-      if (drawCall.Material.Shader.ID != 0)
+      if (drawCall.Mat.ShaderProgram.ID != 0)
       {
-        shader = drawCall.Material.Shader;
+        shader = drawCall.Mat.ShaderProgram;
       }
 
       srSetDefaultShaderUniforms(shader);
       if (srShaderGetUniformLocation("UseTexture", shader, false) != -1)
       {
-        srShaderSetUniform1b(shader, "UseTexture", drawCall.Material.Texture.ID > 0);
+        srShaderSetUniform1b(shader, "UseTexture", drawCall.Mat.Texture0.ID > 0);
       }
 
       glCall(glActiveTexture(GL_TEXTURE0));
-      srBindTexture(drawCall.Material.Texture);
+      srBindTexture(drawCall.Mat.Texture0);
 
       EBatchDrawMode mode = drawCall.Mode;
       switch (mode)
@@ -1193,7 +1193,7 @@ namespace sr
 
   R_API void srBegin(EBatchDrawMode mode)
   {
-    RenderBatch &rb = SRC->RenderBatch;
+    RenderBatch &rb = SRC->MainRenderBatch;
     if (rb.DrawCalls[rb.CurrentDraw].Mode != mode)
     {
       if (rb.DrawCalls[rb.CurrentDraw].Mode == EBatchDrawMode::LINES || rb.DrawCalls[rb.CurrentDraw].Mode == EBatchDrawMode::POINTS)
@@ -1209,7 +1209,7 @@ namespace sr
       rb.DrawCalls[rb.CurrentDraw].Mode = mode;
       rb.DrawCalls[rb.CurrentDraw].VertexCount = 0;
       rb.DrawCalls[rb.CurrentDraw].VertexAlignment = 0;
-      rb.DrawCalls[rb.CurrentDraw].Material = {0};
+      rb.DrawCalls[rb.CurrentDraw].Mat = {0};
 
       rb.CurrentColor1 = 0xffffffff;
       rb.CurrentColor2 = 0x00000000;
@@ -1227,24 +1227,24 @@ namespace sr
   {
     srCheckRenderBatchLimit(1);
 
-    SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter].Pos = vertex;
-    SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter].UV = SRC->RenderBatch.CurrentTexCoord;
-    SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter].Normal = SRC->RenderBatch.CurrentNormal;
-    SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter].Color1 = SRC->RenderBatch.CurrentColor1;
-    SRC->RenderBatch.DrawBuffer.Vertices[SRC->RenderBatch.VertexCounter].Color2 = SRC->RenderBatch.CurrentColor2;
+    SRC->MainRenderBatch.DrawBuffer.Vertices[SRC->MainRenderBatch.VertexCounter].Pos = vertex;
+    SRC->MainRenderBatch.DrawBuffer.Vertices[SRC->MainRenderBatch.VertexCounter].UV = SRC->MainRenderBatch.CurrentTexCoord;
+    SRC->MainRenderBatch.DrawBuffer.Vertices[SRC->MainRenderBatch.VertexCounter].Normal = SRC->MainRenderBatch.CurrentNormal;
+    SRC->MainRenderBatch.DrawBuffer.Vertices[SRC->MainRenderBatch.VertexCounter].Color1 = SRC->MainRenderBatch.CurrentColor1;
+    SRC->MainRenderBatch.DrawBuffer.Vertices[SRC->MainRenderBatch.VertexCounter].Color2 = SRC->MainRenderBatch.CurrentColor2;
 
-    SRC->RenderBatch.VertexCounter++;
-    SRC->RenderBatch.DrawCalls[SRC->RenderBatch.CurrentDraw].VertexCount++;
+    SRC->MainRenderBatch.VertexCounter++;
+    SRC->MainRenderBatch.DrawCalls[SRC->MainRenderBatch.CurrentDraw].VertexCount++;
   }
 
   R_API void srVertex2f(float x, float y)
   {
-    srVertex3f(glm::vec3(x, y, SRC->RenderBatch.CurrentDepth));
+    srVertex3f(glm::vec3(x, y, SRC->MainRenderBatch.CurrentDepth));
   }
 
   R_API void srVertex2f(const glm::vec2 &vertex)
   {
-    srVertex3f(glm::vec3(vertex.x, vertex.y, SRC->RenderBatch.CurrentDepth));
+    srVertex3f(glm::vec3(vertex.x, vertex.y, SRC->MainRenderBatch.CurrentDepth));
   }
 
   R_API void srNormal3f(float x, float y, float z)
@@ -1254,7 +1254,7 @@ namespace sr
 
   R_API void srNormal3f(const glm::vec3 &normal)
   {
-    SRC->RenderBatch.CurrentNormal = normal;
+    SRC->MainRenderBatch.CurrentNormal = normal;
   }
 
   R_API void srColor13f(float r, float g, float b)
@@ -1269,17 +1269,17 @@ namespace sr
 
   R_API void srColor14f(float r, float g, float b, float a)
   {
-    SRC->RenderBatch.CurrentColor1 = srGetColorFromFloat(r, g, b, a);
+    SRC->MainRenderBatch.CurrentColor1 = srGetColorFromFloat(r, g, b, a);
   }
 
   R_API void srColor14f(const glm::vec4 &color)
   {
-    SRC->RenderBatch.CurrentColor1 = srGetColorFromFloat(color);
+    SRC->MainRenderBatch.CurrentColor1 = srGetColorFromFloat(color);
   }
 
   R_API void srColor11c(Color color)
   {
-    SRC->RenderBatch.CurrentColor1 = color;
+    SRC->MainRenderBatch.CurrentColor1 = color;
   }
 
   R_API void srColor23f(float r, float g, float b)
@@ -1294,32 +1294,32 @@ namespace sr
 
   R_API void srColor24f(float r, float g, float b, float a)
   {
-    SRC->RenderBatch.CurrentColor2 = srGetColorFromFloat(r, g, b, a);
+    SRC->MainRenderBatch.CurrentColor2 = srGetColorFromFloat(r, g, b, a);
   }
 
   R_API void srColor24f(const glm::vec4 &color)
   {
-    SRC->RenderBatch.CurrentColor2 = srGetColorFromFloat(color);
+    SRC->MainRenderBatch.CurrentColor2 = srGetColorFromFloat(color);
   }
 
   R_API void srColor21c(Color color)
   {
-    SRC->RenderBatch.CurrentColor2 = color;
+    SRC->MainRenderBatch.CurrentColor2 = color;
   }
 
   R_API void srTextureCoord2f(float u, float v)
   {
-    SRC->RenderBatch.CurrentTexCoord = {u, v};
+    SRC->MainRenderBatch.CurrentTexCoord = {u, v};
   }
 
   R_API void srTextureCoord2f(const glm::vec2 &uv)
   {
-    SRC->RenderBatch.CurrentTexCoord = uv;
+    SRC->MainRenderBatch.CurrentTexCoord = uv;
   }
 
   R_API void srEnd()
   {
-    SRC->RenderBatch.CurrentDepth -= 0.0001f;
+    SRC->MainRenderBatch.CurrentDepth -= 0.0001f;
   }
 
   R_API void srDrawRectanglePro(const glm::vec2 &position, const Rectangle &rect, float rotation, float cornerRadius, PathType pathType, PathStyle style)
@@ -1409,7 +1409,7 @@ namespace sr
 
   void FontTextureInit(FontTexture *result)
   {
-    result->Texture = srLoadTexture(FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, FONT_TEXTURE_DEPTH == 1 ? TextureFormat_R8 : TextureFormat_RGB8);
+    result->Image = srLoadTexture(FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, FONT_TEXTURE_DEPTH == 1 ? TextureFormat_R8 : TextureFormat_RGB8);
     // srTextureSetData(result->Texture, FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, FONT_TEXTURE_DEPTH == 1 ? TextureFormat_R8 : TextureFormat_RGB8, (unsigned char *)0);
     result->Size = glm::ivec2(FONT_TEXTURE_SIZE);
     result->ImageData = new uint8_t[FONT_TEXTURE_SIZE * FONT_TEXTURE_SIZE * FONT_TEXTURE_DEPTH];
@@ -1419,7 +1419,7 @@ namespace sr
 
   void FontTextureUnload(FontTexture *font_texture)
   {
-    srUnloadTexture(&font_texture->Texture);
+    srUnloadTexture(&font_texture->Image);
     delete[] font_texture->ImageData;
     delete ((mapbox::ShelfPack *)font_texture->ShelfPack);
   }
@@ -1550,7 +1550,7 @@ namespace sr
       LoadGlyph(text[c], &result);
     }
 
-    srTextureSetData(result.Texture.Texture, FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, FONT_TEXTURE_DEPTH == 1 ? TextureFormat_R8 : TextureFormat_RGB8, (unsigned char *)result.Texture.ImageData);
+    srTextureSetData(result.Texture.Image, FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, FONT_TEXTURE_DEPTH == 1 ? TextureFormat_R8 : TextureFormat_RGB8, (unsigned char *)result.Texture.ImageData);
 
     return FontManagerLoadFont(result);
   }
@@ -1687,7 +1687,7 @@ namespace sr
     }
     const Font &font = *font_ptr;
 
-    return font.Texture.Texture.ID;
+    return font.Texture.Image.ID;
   }
 
   R_API void srDrawText(FontHandle handle, const char *text, const glm::vec2 &position, Color color, float outline_thickness, Color outline_color)
@@ -1705,9 +1705,9 @@ namespace sr
     srBegin(EBatchDrawMode::QUADS);
     srColor11c(color);
     srColor21c(outline_color);
-    srPushMaterial({font.Texture.Texture, SRC->DistanceFieldShader});
+    srPushMaterial({font.Texture.Image, SRC->DistanceFieldShader});
 
-    float currentDepth = SRC->RenderBatch.CurrentDepth;
+    float currentDepth = SRC->MainRenderBatch.CurrentDepth;
 
     unsigned int prev = 0;
 
@@ -1766,7 +1766,7 @@ namespace sr
         currentDepth -= 0.0001f;
       }
     }
-    SRC->RenderBatch.CurrentDepth = currentDepth;
+    SRC->MainRenderBatch.CurrentDepth = currentDepth;
     srEnd();
   }
 
@@ -1819,14 +1819,14 @@ namespace sr
 
   R_API void srBeginPath(PathType type)
   {
-    SRC->RenderBatch.Path.Styles.clear();
-    SRC->RenderBatch.Path.Points.clear();
-    SRC->RenderBatch.Path.RenderType = type;
+    SRC->MainRenderBatch.Path.Styles.clear();
+    SRC->MainRenderBatch.Path.Points.clear();
+    SRC->MainRenderBatch.Path.RenderType = type;
   }
 
   R_API void srEndPath(bool closedPath)
   {
-    if (SRC->RenderBatch.Path.Points.size() == 0)
+    if (SRC->MainRenderBatch.Path.Points.size() == 0)
       return;
 
     /*if (closedPath && glm::length(SRC->RenderBatch.Path.Points.back() - SRC->RenderBatch.Path.Points[0]) < 0.1f)
@@ -1834,24 +1834,24 @@ namespace sr
       SRC->RenderBatch.Path.Points.pop_back();
     }*/
 
-    if (SRC->RenderBatch.Path.RenderType & PathType_Fill)
+    if (SRC->MainRenderBatch.Path.RenderType & PathType_Fill)
     {
-      srAddPolyFilled(SRC->RenderBatch.Path);
+      srAddPolyFilled(SRC->MainRenderBatch.Path);
     }
-    if (SRC->RenderBatch.Path.RenderType & PathType_Stroke)
+    if (SRC->MainRenderBatch.Path.RenderType & PathType_Stroke)
     {
-      srAddPolyline(SRC->RenderBatch.Path, closedPath);
+      srAddPolyline(SRC->MainRenderBatch.Path, closedPath);
     }
 
-    SRC->RenderBatch.Path.Styles.clear();
-    SRC->RenderBatch.Path.Points.clear();
+    SRC->MainRenderBatch.Path.Styles.clear();
+    SRC->MainRenderBatch.Path.Points.clear();
   }
 
   R_API void srPathClose()
   {
-    if (SRC->RenderBatch.Path.Points.size() > 1)
+    if (SRC->MainRenderBatch.Path.Points.size() > 1)
     {
-      SRC->RenderBatch.Path.Points.push_back(SRC->RenderBatch.Path.Points[0]);
+      SRC->MainRenderBatch.Path.Points.push_back(SRC->MainRenderBatch.Path.Points[0]);
     }
 
     srEndPath();
@@ -1859,10 +1859,10 @@ namespace sr
 
   R_API void srPathLineTo(const glm::vec2 &position)
   {
-    if (SRC->RenderBatch.Path.Points.size() == 0 || glm::length(SRC->RenderBatch.Path.Points.back() - position) > 0.1f)
+    if (SRC->MainRenderBatch.Path.Points.size() == 0 || glm::length(SRC->MainRenderBatch.Path.Points.back() - position) > 0.1f)
     {
     }
-    SRC->RenderBatch.Path.Points.push_back(position);
+    SRC->MainRenderBatch.Path.Points.push_back(position);
   }
 
   R_API void srPathArc(const glm::vec2 &center, float startAngle, float endAngle, float radius, unsigned int segmentCount)
@@ -1958,24 +1958,24 @@ namespace sr
   R_API void srPathSetStrokeEnabled(bool showStroke)
   {
     if (showStroke)
-      SRC->RenderBatch.Path.RenderType |= PathType_Stroke;
+      SRC->MainRenderBatch.Path.RenderType |= PathType_Stroke;
     else
-      SRC->RenderBatch.Path.RenderType &= ~PathType_Stroke;
+      SRC->MainRenderBatch.Path.RenderType &= ~PathType_Stroke;
   }
 
   R_API void srPathSetFillEnabled(bool fill)
   {
     if (fill)
-      SRC->RenderBatch.Path.RenderType |= PathType_Fill;
+      SRC->MainRenderBatch.Path.RenderType |= PathType_Fill;
     else
-      SRC->RenderBatch.Path.RenderType &= ~PathType_Fill;
+      SRC->MainRenderBatch.Path.RenderType &= ~PathType_Fill;
   }
 
   R_API void srPathSetFillColor(Color color)
   {
     PathBuilder::PathStyleIndex &styleIndex = srPathBuilderNewStyle();
     styleIndex.second.FillColor = color;
-    SRC->RenderBatch.Path.CurrentPathStyle.FillColor = color;
+    SRC->MainRenderBatch.Path.CurrentPathStyle.FillColor = color;
   }
 
   R_API void srPathSetFillColor(const glm::vec4 &color)
@@ -1987,7 +1987,7 @@ namespace sr
   {
     PathBuilder::PathStyleIndex &styleIndex = srPathBuilderNewStyle();
     styleIndex.second.StrokeColor = color;
-    SRC->RenderBatch.Path.CurrentPathStyle.StrokeColor = color;
+    SRC->MainRenderBatch.Path.CurrentPathStyle.StrokeColor = color;
   }
 
   R_API void srPathSetStrokeColor(const glm::vec4 &color)
@@ -1999,19 +1999,19 @@ namespace sr
   {
     PathBuilder::PathStyleIndex &styleIndex = srPathBuilderNewStyle();
     styleIndex.second.StrokeWidth = width;
-    SRC->RenderBatch.Path.CurrentPathStyle.StrokeWidth = width;
+    SRC->MainRenderBatch.Path.CurrentPathStyle.StrokeWidth = width;
   }
 
   R_API void srPathSetStyle(const PathStyle &style)
   {
     PathBuilder::PathStyleIndex &styleIndex = srPathBuilderNewStyle();
     styleIndex.second = style;
-    SRC->RenderBatch.Path.CurrentPathStyle = style;
+    SRC->MainRenderBatch.Path.CurrentPathStyle = style;
   }
 
   R_API PathBuilder::PathStyleIndex &srPathBuilderNewStyle()
   {
-    PathBuilder &pb = SRC->RenderBatch.Path;
+    PathBuilder &pb = SRC->MainRenderBatch.Path;
 
     if (pb.Styles.size() == 0)
     {
