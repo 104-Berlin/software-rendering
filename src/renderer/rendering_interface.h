@@ -206,8 +206,8 @@ namespace sr
     // Materials
     struct Material
     {
-        Texture Texture;
-        Shader Shader;
+        Texture Texture0;
+        Shader ShaderProgram;
     };
 
     R_API void srPushMaterial(const Material &mat);
@@ -372,7 +372,7 @@ namespace sr
         struct DrawCall
         {
             EBatchDrawMode Mode = EBatchDrawMode::UNKNOWN;
-            Material Material = {0};
+            Material Mat = {0};
             unsigned int VertexCount = 0;
             unsigned int VertexAlignment = 0; // Number for alining (LINE, TRIANGLES) to quads
         };
@@ -486,7 +486,7 @@ namespace sr
     };
     struct FontTexture
     {
-        Texture Texture;
+        Texture Image;
         glm::ivec2 Size;
         uint8_t *ImageData;
         void *ShelfPack; // For packing the glyphs
@@ -528,7 +528,7 @@ namespace sr
 
     struct SRContext
     {
-        RenderBatch RenderBatch;
+        RenderBatch MainRenderBatch;
         Shader DefaultShader;
         Shader DistanceFieldShader;
         std::vector<Mesh> AutoReleaseMeshes;
