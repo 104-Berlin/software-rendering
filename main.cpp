@@ -162,13 +162,32 @@ int main(int argc, char *argv[])
     glm::vec4 currentMeshColor(1.0f, 1.0f, 1.0f, 1.0f);
     glm::vec4 currentLineColor(1.0f, 0.0f, 0.0f, 1.0f);
 
-    char text[255] = "Franz jagt im komplett verwahrlosten Taxi quer durch Bayern. 1234567890";
+    char text[255] = "";
     float glyph_center = 0.5f;
     float smoothing = 0.04f;
     float glyph_outline_width = 0.0f;
 
     bool drawArcs = false;
     int numArcSegments = 5;
+    glm::vec2 end_point = {100.0f, 0.0f};
+    float angle = 0.0f;
+    float radius_x = 100.0f;
+    float radius_y = 100.0f;
+    bool large_arc_flag = false;
+    bool sweep_flag = false;
+
+    // Bezier Curve
+    bool drawBezier = false;
+    int numBezierSegments = 5;
+    glm::vec2 bezier_controll_point = {0.0f, 100.0f};
+    glm::vec2 bezier_end_point = {100.0f, 0.0f};
+
+    // Bezier Curve
+    bool drawBezierCube = false;
+    int numBezierCubeSegments = 5;
+    glm::vec2 beziercube_controll_point_1 = {0.0f, 100.0f};
+    glm::vec2 beziercube_controll_point_2 = {100.0f, 100.0f};
+    glm::vec2 beziercube_end_point = {100.0f, 0.0f};
 
     bool done = false;
     while (!done)
@@ -212,11 +231,38 @@ int main(int argc, char *argv[])
         }
         if (ImGui::CollapsingHeader("Arcs"))
         {
-
             ImGui::Checkbox("Draw arcs", &drawArcs);
+
+            ImGui::DragFloat2("End Point", glm::value_ptr(end_point), 0.1f, -1000.0f, 1000.0f);
+            ImGui::DragFloat("Angle", &angle, 0.1f, -360.0f, 360.0f);
+            ImGui::DragFloat("Radius X", &radius_x, 0.1f, 0.0f, 500.0f);
+            ImGui::DragFloat("Radius Y", &radius_y, 0.1f, 0.0f, 500.0f);
+            ImGui::Checkbox("Large Arc Flag", &large_arc_flag);
+            ImGui::Checkbox("Sweep Flag", &sweep_flag);
+
             ImGui::SliderInt("Arc segments", &numArcSegments, 5, 75);
 
             ImGui::Text("Current Angle %f", displayAngle);
+        }
+        if (ImGui::CollapsingHeader("Bezier"))
+        {
+            ImGui::Checkbox("Draw Curve", &drawBezier);
+
+            ImGui::DragFloat2("Controll Point", glm::value_ptr(bezier_controll_point), 0.1f, -1000.0f, 1000.0f);
+            ImGui::DragFloat2("End Point", glm::value_ptr(bezier_end_point), 0.1f, -1000.0f, 1000.0f);
+
+            ImGui::SliderInt("Bezier segments", &numBezierSegments, 5, 75);
+        }
+
+        if (ImGui::CollapsingHeader("Bezier Cube"))
+        {
+            ImGui::Checkbox("Draw Cube Curve", &drawBezierCube);
+
+            ImGui::DragFloat2("Cube Controll Point 1", glm::value_ptr(beziercube_controll_point_1), 0.1f, -1000.0f, 1000.0f);
+            ImGui::DragFloat2("Cube Controll Point 2", glm::value_ptr(beziercube_controll_point_2), 0.1f, -1000.0f, 1000.0f);
+            ImGui::DragFloat2("Cube End Point", glm::value_ptr(beziercube_end_point), 0.1f, -1000.0f, 1000.0f);
+
+            ImGui::SliderInt("Cube Bezier segments", &numBezierCubeSegments, 5, 75);
         }
         if (ImGui::CollapsingHeader("Text"))
         {
@@ -289,16 +335,55 @@ int main(int argc, char *argv[])
 
         if (drawArcs)
         {
+            sr::srDrawCircle(half_size, 5.0f, 0xff0000ff);
+            sr::srDrawCircle(half_size + end_point, 5.0f, 0xff0000ff);
+
             sr::srBeginPath(sr::PathType_Stroke);
             sr::srPathSetStrokeWidth(4.0f);
             sr::srPathSetStrokeColor(currentLineColor);
-            // sr::srPathArc(glm::vec2(), 0.0f, 90.0f, 250, numArcSegments);
-            sr::srPathArc(half_size, 90.0f, 180.0f, 250, numArcSegments);
+            sr::srPathLineTo(half_size);
+            //  sr::srPathLineTo(half_size + glm::vec2(100.0f, 0.0f));
+
+            sr::srPathEllipticalArc(half_size + end_point, angle, radius_x, radius_y, large_arc_flag, sweep_flag, numArcSegments);
+            // sr::srPathArc(half_size, 0.0f, 90.0f, 250, numArcSegments);
+            //    sr::srPathArc(half_size, 90.0f, 180.0f, 250, numArcSegments);
             sr::srEndPath();
         }
 
-        sr::srDrawRectangle(half_size - glm::vec2(0.0f, sr::srFontGetLineTop(font)), sr::srFontGetTextSize(font, text), {0.0f, 0.0f});
-        sr::srDrawText(font, text, {half_size.x, (half_size.y * 2) + sr::srFontGetLineBottom(font)}, sr::srGetColorFromFloat(currentLineColor), glyph_outline_width);
+        if (drawBezier)
+        {
+            sr::srDrawCircle(half_size, 5.0f, 0xff0000ff);
+            sr::srDrawCircle(half_size + bezier_controll_point, 5.0f, 0xff0000ff);
+            sr::srDrawCircle(half_size + bezier_end_point, 5.0f, 0xff0000ff);
+
+            sr::srBeginPath(sr::PathType_Stroke);
+            sr::srPathSetStrokeWidth(4.0f);
+            sr::srPathSetStrokeColor(currentLineColor);
+            sr::srPathLineTo(half_size);
+            sr::srPathQuadraticBezierTo(half_size + bezier_controll_point, half_size + bezier_end_point, numBezierSegments);
+            sr::srEndPath();
+        }
+
+        if (drawBezierCube)
+        {
+            sr::srDrawCircle(half_size, 5.0f, 0xff0000ff);
+            sr::srDrawCircle(half_size + beziercube_controll_point_1, 5.0f, 0xff0000ff);
+            sr::srDrawCircle(half_size + beziercube_controll_point_2, 5.0f, 0xff0000ff);
+            sr::srDrawCircle(half_size + beziercube_end_point, 5.0f, 0xff0000ff);
+
+            sr::srBeginPath(sr::PathType_Stroke);
+            sr::srPathSetStrokeWidth(4.0f);
+            sr::srPathSetStrokeColor(currentLineColor);
+            sr::srPathLineTo(half_size);
+            sr::srPathCubicBezierTo(half_size + beziercube_controll_point_1, half_size + beziercube_controll_point_2, half_size + beziercube_end_point, numBezierCubeSegments);
+            sr::srEndPath();
+        }
+
+        if (strlen(text) > 0)
+        {
+            sr::srDrawRectangle(half_size - glm::vec2(0.0f, sr::srFontGetLineTop(font)), sr::srFontGetTextSize(font, text), {0.0f, 0.0f});
+            sr::srDrawText(font, text, {half_size.x, half_size.y}, sr::srGetColorFromFloat(currentLineColor), glyph_outline_width);
+        }
 
         /*sr::srBeginPath(sr::PathType_Stroke);
         sr::srPathSetStrokeWidth(lineWidth);

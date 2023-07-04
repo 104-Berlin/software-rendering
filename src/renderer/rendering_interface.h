@@ -432,6 +432,9 @@ namespace sr
     R_API void srEndPath(bool closedPath = false);
     R_API void srPathLineTo(const glm::vec2 &position);
     R_API void srPathArc(const glm::vec2 &center, float startAngle, float endAngle, float radius, unsigned int segmentCount = 22);
+    R_API void srPathEllipticalArc(const glm::vec2 &end_point, float angle, float radius_x, float radius_y, bool large_arc_flag, bool sweep_flag, unsigned int segmentCount = 22);
+    R_API void srPathCubicBezierTo(const glm::vec2 &controll1, const glm::vec2 &controll2, const glm::vec2 &endPosition, unsigned int segmentCount = 22);
+    R_API void srPathQuadraticBezierTo(const glm::vec2 &controll, const glm::vec2 &endPosition, unsigned int segmentCount = 22);
 
     R_API void srPathSetStrokeEnabled(bool showStroke);
     R_API void srPathSetFillEnabled(bool fill);

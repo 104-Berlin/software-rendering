@@ -1884,75 +1884,123 @@ namespace sr
     }
   }
 
-  R_API void srPathRectangle(const Rectangle &rect, const glm::vec2 &origin, float rotation, float cornerRadius)
+  // https://www.w3.org/TR/SVG/implnote.html#ArcImplementationNotes
+  R_API void srPathEllipticalArc(const glm::vec2 &end_point, float angle, float radius_x, float radius_y, bool large_arc_flag, bool sweep_flag, unsigned int segmentCount)
   {
-    // We want fresh path, so nothing connects to the previus
-    /*srEndPath();
-    srBeginPath(PathType_Stroke);
+    assert(SRC->MainRenderBatch.Path.Points.size() > 0);
+    glm::vec2 start_point = SRC->MainRenderBatch.Path.Points.back();
+    // Use angle in radiens. Comes in as deg
+    angle = (angle * DEG2RAD);
 
-    glm::vec2 topLeft;
-    glm::vec2 topRight;
-    glm::vec2 bottomLeft;
-    glm::vec2 bottomRight;
-      // Draw rect with simple corners
+    glm::mat2 rotation_matrix = glm::mat2(glm::vec2(cosf(angle), sinf(angle)), glm::vec2(-sinf(angle), cosf(angle)));
+    glm::vec2 v = rotation_matrix * ((start_point - end_point) / 2.0f);
 
+    float x1p = v.x;
+    float y1p = v.y;
 
+    radius_x = srAbs(radius_x);
+    radius_y = srAbs(radius_y);
 
-    float sin = rotation != 0 ? sinf(rotation*DEG2RAD) : 0;
-    float cos = rotation != 0 ? cosf(rotation*DEG2RAD) : 1;
-    if (rotation == 0.0f)
+    float lamba = ((x1p * x1p) / (radius_x * radius_x)) + ((y1p * y1p) / (radius_y * radius_y));
+    if (lamba > 1.0f)
     {
-      float x = rect.X - origin.x;
-      float y = rect.Y - origin.y;
-      topLeft = glm::vec2(x, y + rect.Height);
-      topRight = glm::vec2(x + rect.Width, y + rect.Height);
-      bottomLeft = glm::vec2(x, y);
-      bottomRight = glm::vec2(x + rect.Width, y);
-    }
-    else
-    {
-
-      float x = rect.X;
-      float y = rect.Y;
-      float dx = -origin.x;
-      float dy = -origin.y;
-
-      topLeft.x = x + dx*cos - (dy + rect.Height)*sin;
-      topLeft.y = y + dx*sin + (dy + rect.Height)*cos;
-
-      topRight.x = x + (dx + rect.Width)*cos - (dy + rect.Height)*sin;
-      topRight.y = y + (dx + rect.Width)*sin + (dy + rect.Height)*cos;
-
-      bottomLeft.x = x + dx*cos - dy*sin;
-      bottomLeft.y = y + dx*sin + dy*cos;
-
-      bottomRight.x = x + (dx + rect.Width)*cos - dy*sin;
-      bottomRight.y = y + (dx + rect.Width)*sin + dy*cos;
+      radius_x *= sqrtf(lamba);
+      radius_y *= sqrtf(lamba);
     }
 
+    float radius_x_sqr = radius_x * radius_x;
+    float radius_y_sqr = radius_y * radius_y;
+    float x1p_sqr = x1p * x1p;
+    float y1p_sqr = y1p * y1p;
 
-    if (cornerRadius > 0.0f)
+    float sign = (large_arc_flag == sweep_flag) ? -1.0f : 1.0f;
+    float c = sign * sqrtf(((radius_x_sqr * radius_y_sqr) - (radius_x_sqr * y1p_sqr) - (radius_y_sqr * x1p_sqr)) / ((radius_x_sqr * y1p_sqr) + (radius_y_sqr * x1p_sqr)));
+
+    glm::vec2 cp = c * glm::vec2((radius_x * y1p) / radius_y, (-radius_y * x1p) / radius_x);
+    glm::mat2 cp_rotation_matrix = glm::mat2(glm::vec2(cosf(angle), -sinf(angle)), glm::vec2(sinf(angle), cosf(angle)));
+
+    glm::vec2 center_point = (cp_rotation_matrix * cp) + glm::vec2{(start_point.x + end_point.x) / 2.0f, (start_point.y + end_point.y) / 2.0f};
+
+    glm::vec2 angle_v = {(x1p - cp.x) / radius_x, (y1p - cp.y) / radius_y};
+
+    auto arccos = [](const glm::vec2 &a, const glm::vec2 &b) -> float
     {
-      // Start with top left (right of arc) corner
-      cornerRadius = srClamp(cornerRadius, 0.0f, 1.0f);
-      const float min_size = (srMin(rect.Width, rect.Height) / 2.0f) * cornerRadius;
-      const glm::vec2 arcCenterX = glm::vec2(min_size * cos, min_size * sin);
-      const glm::vec2 arcCenterY = glm::vec2(min_size * -sin, min_size * cos);
+      float sign = (a.x * b.y) - (a.y * b.x);
+      sign = sign / srAbs(sign);
+      return sign * acosf(glm::dot(a, b) / (glm::length(a) * glm::length(b)));
+    };
 
-      srPathArc(topLeft + arcCenterX - arcCenterY, -90.0f - rotation, -rotation, min_size);
-      srPathArc(topRight - arcCenterX - arcCenterY, 0.0f - rotation, 90.0f - rotation, min_size);
-      srPathArc(bottomRight -arcCenterX + arcCenterY, 90.0f - rotation, 180.0f - rotation, min_size);
-      srPathArc(bottomLeft + arcCenterX + arcCenterY, 180.0f - rotation, 270.0f - rotation, min_size);
-    }
-    else
+    float start_angle = arccos(glm::vec2{1.0f, 0.0f}, angle_v);
+
+    glm::vec2 angle_range_v = {(-x1p - cp.x) / radius_x, (-y1p - cp.y) / radius_y};
+    float angle_range = arccos(angle_v, angle_range_v);
+
+    if (!sweep_flag && angle_range > 0.0f)
     {
-      srPathLineTo(topLeft);
-      srPathLineTo(topRight);
-      srPathLineTo(bottomRight);
-      srPathLineTo(bottomLeft);
+      angle_range -= 2.0f * PI;
+    }
+    else if (sweep_flag && angle_range < 0.0f)
+    {
+      angle_range += 2.0f * PI;
     }
 
-    srEndPath();*/
+    const float degIncrease = angle_range / segmentCount;
+
+    float currentAngle = start_angle + degIncrease;
+
+    float rot_angle_sin = sinf(angle);
+    float rot_angle_cos = cosf(angle);
+
+    for (unsigned int i = 0; i < segmentCount; i++)
+    {
+      glm::vec2 currentPosition = cp_rotation_matrix * glm::vec2(radius_x * cosf(currentAngle), radius_y * sinf(currentAngle));
+
+      srPathLineTo(center_point + currentPosition);
+      currentAngle += degIncrease;
+    }
+  }
+
+  R_API void srPathCubicBezierTo(const glm::vec2 &controll1, const glm::vec2 &controll2, const glm::vec2 &endPosition, unsigned int segmentCount)
+  {
+    assert(SRC->MainRenderBatch.Path.Points.size() > 0);
+    glm::vec2 start_point = SRC->MainRenderBatch.Path.Points.back();
+
+    for (unsigned int i = 1; i <= segmentCount; i++)
+    {
+      float t = (float)i / (float)segmentCount;
+      float u = 1.0f - t;
+      float tt = t * t;
+      float uu = u * u;
+      float uuu = uu * u;
+      float ttt = tt * t;
+
+      glm::vec2 p = uuu * start_point;
+      p += 3 * uu * t * controll1;
+      p += 3 * u * tt * controll2;
+      p += ttt * endPosition;
+
+      srPathLineTo(p);
+    }
+  }
+
+  R_API void srPathQuadraticBezierTo(const glm::vec2 &controll, const glm::vec2 &endPosition, unsigned int segmentCount)
+  {
+    assert(SRC->MainRenderBatch.Path.Points.size() > 0);
+    glm::vec2 start_point = SRC->MainRenderBatch.Path.Points.back();
+
+    for (unsigned int i = 1; i <= segmentCount; i++)
+    {
+      float t = (float)i / (float)segmentCount;
+      float u = 1.0f - t;
+      float tt = t * t;
+      float uu = u * u;
+
+      glm::vec2 p = uu * start_point;
+      p += 2 * u * t * controll;
+      p += tt * endPosition;
+
+      srPathLineTo(p);
+    }
   }
 
   R_API void srPathSetStrokeEnabled(bool showStroke)
