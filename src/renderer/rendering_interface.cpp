@@ -1854,7 +1854,7 @@ namespace sr
       SRC->MainRenderBatch.Path.Points.push_back(SRC->MainRenderBatch.Path.Points[0]);
     }
 
-    srEndPath();
+    srEndPath(true);
   }
 
   R_API void srPathLineTo(const glm::vec2 &position)
