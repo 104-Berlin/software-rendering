@@ -2111,6 +2111,8 @@ namespace sr
     glm::vec2 lastTop{};
     glm::vec2 lastBottom{};
 
+    closedPath = closedPath && pb.Points[0] != pb.Points.back();
+
     for (size_t i1 = 0; i1 < count + (closedPath ? 1 : 0); i1++)
     {
       const glm::vec2 &currentPoint = pb.Points[i1 % count];
