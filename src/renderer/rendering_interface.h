@@ -523,6 +523,7 @@ namespace sr
     typedef unsigned int FontHandle;
 
     R_API FontHandle srLoadFont(const char *filePath, unsigned int size = 24);
+    R_API FontHandle srLoadFontFromMemory(const unsigned char *data, unsigned int data_size, unsigned int font_size = 24);
     R_API void srUnloadFont(FontHandle font);
 
     R_API int srFontGetTextWidth(FontHandle font, const char *text);

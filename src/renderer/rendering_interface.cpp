@@ -1581,37 +1581,54 @@ namespace sr
     SRC->LoadedFonts.erase(handle);
   }
 
+  FontHandle srInitializeFont(Font font, unsigned int size)
+  {
+    FontTextureInit(&font.Texture);
+    FT_Set_Char_Size(
+        font.Face, // handle to face object
+        0,         // char_width in 1/64 of points
+        size * 64, // char_height in 1/64 of points
+        96,        // horizontal device resolution
+        96);
+    font.Size = size;
+    font.LineHeight = font.Face->size->metrics.height / 64;
+    font.LineTop = font.Face->size->metrics.ascender / 64;
+    font.LineBottom = font.Face->size->metrics.descender / 64;
+    SR_TRACE("Loaded font. Line height = %d", font.LineHeight);
+    // Load first 128 chars
+    static const char *text = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ -_.:,;#'+*1234567890!\"§$%&/\\[{()}]@€";
+    for (char c = 0; c < strlen(text); c++)
+    {
+      LoadGlyph(text[c], &font);
+    }
+
+    srTextureSetData(font.Texture.Image, FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, FONT_TEXTURE_DEPTH == 1 ? TextureFormat_R8 : TextureFormat_RGB8, (unsigned char *)font.Texture.ImageData);
+
+    return FontManagerLoadFont(font);
+  }
+
   R_API FontHandle srLoadFont(const char *filePath, unsigned int size)
   {
     Font result{};
-    FontTextureInit(&result.Texture);
 
     if (FT_New_Face(SRC->Libary, filePath, 0, &result.Face) != 0)
     {
       SR_TRACE("ERROR: Could not load font from file %s", filePath);
       return -1;
     }
-    FT_Set_Char_Size(
-        result.Face, // handle to face object
-        0,           // char_width in 1/64 of points
-        size * 64,   // char_height in 1/64 of points
-        96,          // horizontal device resolution
-        96);
-    result.Size = size;
-    result.LineHeight = result.Face->size->metrics.height / 64;
-    result.LineTop = result.Face->size->metrics.ascender / 64;
-    result.LineBottom = result.Face->size->metrics.descender / 64;
-    SR_TRACE("Loaded font. Line height = %d", result.LineHeight);
-    // Load first 128 chars
-    static const char *text = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ -_.:,;#'+*1234567890!\"§$%&/\\[{()}]@€";
-    for (char c = 0; c < strlen(text); c++)
+    return srInitializeFont(result, size);
+  }
+
+  R_API FontHandle srLoadFontFromMemory(const unsigned char *data, unsigned int data_size, unsigned int font_size)
+  {
+    Font result{};
+
+    if (FT_New_Memory_Face(SRC->Libary, data, data_size, 0, &result.Face) != 0)
     {
-      LoadGlyph(text[c], &result);
+      SR_TRACE("ERROR: Could not load font from memory");
+      return -1;
     }
-
-    srTextureSetData(result.Texture.Image, FONT_TEXTURE_SIZE, FONT_TEXTURE_SIZE, FONT_TEXTURE_DEPTH == 1 ? TextureFormat_R8 : TextureFormat_RGB8, (unsigned char *)result.Texture.ImageData);
-
-    return FontManagerLoadFont(result);
+    return srInitializeFont(result, font_size);
   }
 
   R_API void srUnloadFont(FontHandle handle)
