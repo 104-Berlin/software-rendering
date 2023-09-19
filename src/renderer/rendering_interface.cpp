@@ -13,6 +13,43 @@ extern "C"
 #include FT_FREETYPE_H
 }
 
+struct FontManager
+{
+  std::unordered_map<sr::FontHandle, sr::Font> LoadedFonts;
+  FT_Library Libary;
+};
+
+FontManager *sFontManager = nullptr;
+
+void InitFontManager()
+{
+  if (sFontManager)
+  {
+    return;
+  }
+
+  sFontManager = new FontManager();
+  FT_Init_FreeType(&sFontManager->Libary);
+}
+
+void CleanUpFontManager()
+{
+  if (sFontManager)
+  {
+    delete sFontManager;
+    sFontManager = nullptr;
+  }
+}
+
+FontManager *GetFontManager()
+{
+  if (!sFontManager)
+  {
+    InitFontManager();
+  }
+  return sFontManager;
+}
+
 sr::SRContext *sr::SRC = nullptr;
 
 const char *basicMeshVertexShader = R"(
@@ -233,6 +270,8 @@ namespace sr
       delete SRC;
       SRC = NULL;
     }
+
+    CleanUpFontManager();
   }
 
   R_API void srInitGL()
@@ -256,7 +295,6 @@ namespace sr
     }
     context->Scissor.Enabled = false;
     context->MainRenderBatch = srLoadRenderBatch(5000);
-    FT_Init_FreeType(&context->Libary);
   }
 
   R_API SRContext *srGetContext()
@@ -1545,7 +1583,7 @@ namespace sr
 
   bool FontManagerHasFontLoaded(FontHandle handle)
   {
-    return SRC->LoadedFonts.find(handle) != SRC->LoadedFonts.end();
+    return GetFontManager()->LoadedFonts.find(handle) != GetFontManager()->LoadedFonts.end();
   }
 
   const Font *FontManagerGetFont(FontHandle handle)
@@ -1554,17 +1592,17 @@ namespace sr
     {
       return nullptr;
     }
-    return &SRC->LoadedFonts.at(handle);
+    return &GetFontManager()->LoadedFonts.at(handle);
   }
 
   FontHandle FontManagerLoadFont(Font font)
   {
-    FontHandle new_handle = SRC->LoadedFonts.size();
+    FontHandle new_handle = GetFontManager()->LoadedFonts.size();
     while (FontManagerHasFontLoaded(new_handle))
     {
       new_handle++;
     }
-    SRC->LoadedFonts[new_handle] = font;
+    GetFontManager()->LoadedFonts[new_handle] = font;
     return new_handle;
   }
 
@@ -1575,10 +1613,10 @@ namespace sr
       SR_TRACE("ERROR: Cant unload font with handle (%d). Font does not exist!", handle);
       return;
     }
-    Font &font = SRC->LoadedFonts.at(handle);
+    Font &font = GetFontManager()->LoadedFonts.at(handle);
     delete font.Face;
     FontTextureUnload(&font.Texture);
-    SRC->LoadedFonts.erase(handle);
+    GetFontManager()->LoadedFonts.erase(handle);
   }
 
   FontHandle srInitializeFont(Font font, unsigned int size)
@@ -1611,7 +1649,7 @@ namespace sr
   {
     Font result{};
 
-    if (FT_New_Face(SRC->Libary, filePath, 0, &result.Face) != 0)
+    if (FT_New_Face(GetFontManager()->Libary, filePath, 0, &result.Face) != 0)
     {
       SR_TRACE("ERROR: Could not load font from file %s", filePath);
       return -1;
@@ -1623,7 +1661,7 @@ namespace sr
   {
     Font result{};
 
-    if (FT_New_Memory_Face(SRC->Libary, data, data_size, 0, &result.Face) != 0)
+    if (FT_New_Memory_Face(GetFontManager()->Libary, data, data_size, 0, &result.Face) != 0)
     {
       SR_TRACE("ERROR: Could not load font from memory");
       return -1;

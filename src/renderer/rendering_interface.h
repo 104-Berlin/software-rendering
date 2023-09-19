@@ -551,8 +551,7 @@ namespace sr
         Shader DistanceFieldShader;
         std::vector<Mesh> AutoReleaseMeshes;
         glm::mat4 CurrentProjection;
-        FT_Library Libary;
-        std::unordered_map<FontHandle, Font> LoadedFonts;
+        
 
         // Scissoring
         ScissorTest Scissor;
