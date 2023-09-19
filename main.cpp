@@ -332,8 +332,10 @@ int main(int argc, char *argv[])
 
         if (drawRect)
         {
+            sr::srEnableScissor(half_size.x - 100.0f, half_size.y - 100.0f, 200.0f, 200.0f);
             sr::srDrawRectangleFilledRC(half_size, {rectSize.x, rectSize.y}, rectSize / 2.0f, rectRotation, cornerRadius, sr::srGetColorFromFloat(currentMeshColor));
             sr::srDrawRectangleRC(half_size, {rectSize.x, rectSize.y}, rectSize / 2.0f, rectRotation, cornerRadius, lineWidth, sr::srGetColorFromFloat(currentLineColor));
+            sr::srDisableScissor();
         }
 
         if (drawArcs)

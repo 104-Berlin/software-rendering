@@ -187,6 +187,28 @@ namespace sr
     return corner;
   }
 
+  static bool operator==(const ScissorTest &sc1, const ScissorTest &sc2)
+  {
+    if (sc1.Enabled != sc2.Enabled)
+    {
+      return false;
+    }
+
+    if (sc1.Enabled)
+    {
+      return sc1.X == sc2.X && sc1.Y == sc2.Y &&
+             sc1.Width == sc2.Width && sc1.Height == sc2.Height;
+    }
+
+    // cs1 and cs2 are disabled, so we return true
+    return true;
+  }
+
+  static bool operator!=(const ScissorTest &sc1, const ScissorTest &sc2)
+  {
+    return !(sc1 == sc2);
+  }
+
   R_API void srLoad(SRLoadProc loadAddress)
   {
     gladLoadGLLoader(loadAddress);
@@ -226,12 +248,13 @@ namespace sr
   {
     if (context->DefaultShader.ID == 0)
     {
-      SRC->DefaultShader = srLoadShader(basicMeshVertexShader, basicMeshFragmentShader);
+      context->DefaultShader = srLoadShader(basicMeshVertexShader, basicMeshFragmentShader);
     }
     if (context->DistanceFieldShader.ID == 0)
     {
-      SRC->DistanceFieldShader = srLoadShader(basicMeshVertexShader, distanceFieldFragmentShader);
+      context->DistanceFieldShader = srLoadShader(basicMeshVertexShader, distanceFieldFragmentShader);
     }
+    context->Scissor.Enabled = false;
     context->MainRenderBatch = srLoadRenderBatch(5000);
     FT_Init_FreeType(&context->Libary);
   }
@@ -243,12 +266,18 @@ namespace sr
 
   R_API void srNewFrame(int frameWidth, int frameHeight, int windowWidth, int windowHeight)
   {
+    glDisable(GL_SCISSOR_TEST);
+    srDisableScissor();
     srViewport(0, 0, (float)frameWidth, (float)frameHeight);
     srClearColor(0.8f, 0.8f, 0.8f, 1.0f);
     srClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     SRC->CurrentProjection = glm::orthoLH(0.0f, (float)windowWidth, (float)windowHeight, 0.0f, -1.0f, 1.0f);
     SRC->MainRenderBatch.CurrentDepth = 0.0f;
+
+    assert((frameWidth / windowWidth) == (frameHeight / windowHeight) && "Frame and window scale should be the same on both axis!");
+    SRC->ScissorScale = frameWidth / windowWidth;
+    SRC->WindowHeight = windowHeight;
   }
 
   R_API void srEndFrame()
@@ -1155,6 +1184,16 @@ namespace sr
         shader = drawCall.Mat.ShaderProgram;
       }
 
+      if (!drawCall.Scissor.Enabled)
+      {
+        glDisable(GL_SCISSOR_TEST);
+      }
+      else
+      {
+        glEnable(GL_SCISSOR_TEST);
+        glScissor(drawCall.Scissor.X, drawCall.Scissor.Y, drawCall.Scissor.Width, drawCall.Scissor.Height);
+      }
+
       srSetDefaultShaderUniforms(shader);
       if (srShaderGetUniformLocation("UseTexture", shader, false) != -1)
       {
@@ -1191,10 +1230,29 @@ namespace sr
     batch->VertexCounter = 0;
   }
 
+  R_API void srEnableScissor(float x, float y, float width, float height)
+  {
+    SRC->Scissor.Enabled = true;
+
+    // Calculate Ortho coords to window coords
+    float scissor_y = (y + height); // Go to bottom
+    scissor_y = SRC->WindowHeight - scissor_y;
+
+    SRC->Scissor.X = x * SRC->ScissorScale;
+    SRC->Scissor.Y = scissor_y * SRC->ScissorScale;
+    SRC->Scissor.Width = width * SRC->ScissorScale;
+    SRC->Scissor.Height = height * SRC->ScissorScale;
+  }
+
+  R_API void srDisableScissor()
+  {
+    SRC->Scissor.Enabled = false;
+  }
+
   R_API void srBegin(EBatchDrawMode mode)
   {
     RenderBatch &rb = SRC->MainRenderBatch;
-    if (rb.DrawCalls[rb.CurrentDraw].Mode != mode)
+    if (rb.DrawCalls[rb.CurrentDraw].Mode != mode || rb.DrawCalls[rb.CurrentDraw].Scissor != SRC->Scissor)
     {
       if (rb.DrawCalls[rb.CurrentDraw].Mode == EBatchDrawMode::LINES || rb.DrawCalls[rb.CurrentDraw].Mode == EBatchDrawMode::POINTS)
         rb.DrawCalls[rb.CurrentDraw].VertexAlignment = rb.DrawCalls[rb.CurrentDraw].VertexCount % 4;
@@ -1210,6 +1268,7 @@ namespace sr
       rb.DrawCalls[rb.CurrentDraw].VertexCount = 0;
       rb.DrawCalls[rb.CurrentDraw].VertexAlignment = 0;
       rb.DrawCalls[rb.CurrentDraw].Mat = {0};
+      rb.DrawCalls[rb.CurrentDraw].Scissor = SRC->Scissor;
 
       rb.CurrentColor1 = 0xffffffff;
       rb.CurrentColor2 = 0x00000000;

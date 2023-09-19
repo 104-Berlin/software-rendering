@@ -81,6 +81,15 @@ namespace sr
         glm::vec2 BottomLeft;
     };
 
+    struct ScissorTest
+    {
+        bool Enabled;
+        float X;
+        float Y;
+        float Width;
+        float Height;
+    };
+
     /**
      * @brief Takes a rectangle and rotates it around the origin
      *
@@ -375,6 +384,8 @@ namespace sr
             Material Mat = {0};
             unsigned int VertexCount = 0;
             unsigned int VertexAlignment = 0; // Number for alining (LINE, TRIANGLES) to quads
+
+            ScissorTest Scissor;
         };
 
         Buffer DrawBuffer;
@@ -404,6 +415,9 @@ namespace sr
     R_API void srIncreaseRenderBatchCurrentDraw(RenderBatch *batch);
     R_API bool srCheckRenderBatchLimit(unsigned int numVerts); // Returns true if batch overflowed
     R_API void srDrawRenderBatch(RenderBatch *batch);
+
+    R_API void srEnableScissor(float x, float y, float width, float height);
+    R_API void srDisableScissor();
 
     R_API void srBegin(EBatchDrawMode mode);
     R_API void srVertex3f(float x, float y, float z);
@@ -538,6 +552,12 @@ namespace sr
         glm::mat4 CurrentProjection;
         FT_Library Libary;
         std::unordered_map<FontHandle, Font> LoadedFonts;
+
+        // Scissoring
+        ScissorTest Scissor;
+        // This will get updated every call to newFrame
+        float ScissorScale; // When window width != viewport width (ie. on mac with retina display)
+        float WindowHeight; // For flipping the scissor, because Ortho matrix is up = 0 and scissor coords is bottom = 0
     };
 
 }
